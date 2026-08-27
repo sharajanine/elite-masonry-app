@@ -85,6 +85,7 @@
       <button class="tab-btn" data-tab="contracts">Net 30 Tracking</button>
       <button class="tab-btn" data-tab="calculator">Price Calculator</button>
       <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
+      <button class="tab-btn" data-tab="tips">💡 Tips</button>
     </div>
 
     <!-- Dashboard -->
@@ -101,35 +102,78 @@
         <div class="upload-icon">📸</div>
         <p style="font-weight: 500; margin-bottom: 0.25rem;">Quick add from image</p>
         <p style="font-size: 13px; color: #666;">Upload a screenshot of a bid and we'll extract details</p>
+        <p style="font-size: 11px; color: #999; margin-top: 0.75rem;">💡 <a href="#" onclick="document.querySelector('[data-tab=\"tips\"]').click(); return false;" style="color: #2563eb;">Tips for better extracts</a></p>
       </div>
     </div>
 
     <!-- New Job -->
     <div id="newjob" class="content">
-      <form id="newJobForm" style="max-width: 600px;">
-        <div class="form-group">
-          <label>Address *</label>
-          <input type="text" id="jobAddress" placeholder="464 Ontario Dr" required>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+        <!-- Left: Paste text -->
+        <div>
+          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">📝 Paste raw text</h3>
+          <p style="font-size: 12px; color: #666; margin-bottom: 0.75rem;">Email, message, or invoice text:</p>
+          <textarea id="jobTextInput" placeholder="Paste: 'ABC Masonry quoted $2500 for driveway at 464 Ontario Dr'" style="width: 100%; height: 120px; margin-bottom: 0.75rem; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: monospace;"></textarea>
+          <button class="btn-primary" onclick="extractJobFromText()" style="width: 100%; margin-bottom: 0.5rem;">Extract from text</button>
         </div>
-        <div class="form-group">
-          <label>Description</label>
-          <input type="text" id="jobDescription" placeholder="e.g., Driveway replacement">
+
+        <!-- Middle: Voice capture -->
+        <div>
+          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">🎤 Or say it out loud</h3>
+          <p style="font-size: 12px; color: #666; margin-bottom: 0.75rem;">Speak the job details:</p>
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+            <button class="btn-primary" id="jobVoiceBtn" onclick="startJobVoice()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+              🎤 Start recording
+            </button>
+            <button onclick="stopJobVoice()" style="flex: 0.5; opacity: 0.5;" id="jobVoiceStopBtn" disabled>Stop</button>
+          </div>
+          <div id="jobVoiceText" style="background: #f5f5f5; padding: 0.75rem; border-radius: 4px; min-height: 40px; font-size: 12px; color: #666; font-style: italic;">Listening...</div>
+          <div style="margin-top: 0.75rem;">
+            <button class="btn-primary" onclick="extractJobFromVoice()" style="width: 100%;">Extract from voice</button>
+          </div>
         </div>
-        <div class="grid-2">
-          <div class="form-group"><label>Yards *</label><input type="number" id="jobYards" placeholder="3" required></div>
-          <div class="form-group"><label>Total cost *</label><input type="number" id="jobCost" placeholder="2851" required></div>
+
+        <!-- Right: Manual entry form -->
+        <div>
+          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">✋ Or enter manually</h3>
+          <form id="newJobForm" style="max-width: none;">
+            <div class="form-group" style="margin-bottom: 0.75rem;">
+              <label style="font-size: 12px;">Address</label>
+              <input type="text" id="jobAddress" placeholder="464 Ontario Dr" style="font-size: 12px;">
+            </div>
+            <div class="form-group" style="margin-bottom: 0.75rem;">
+              <label style="font-size: 12px;">Description</label>
+              <input type="text" id="jobDescription" placeholder="Driveway replacement" style="font-size: 12px;">
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 12px;">Yards</label>
+                <input type="number" id="jobYards" placeholder="3" style="font-size: 12px;">
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label style="font-size: 12px;">Cost *</label>
+                <input type="number" id="jobCost" placeholder="2851" style="font-size: 12px;">
+              </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 0.75rem;">
+              <label style="font-size: 12px;">Margin: <span id="marginVal">40</span>%</label>
+              <input type="range" id="jobMargin" min="10" max="80" value="40" style="width: 100%;">
+            </div>
+            <div style="background: #f5f5f5; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 12px;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                <span>Cost:</span><span id="showCost">$0</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                <span>Profit:</span><span id="showProfit">$0</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; font-weight: 500;">
+                <span>Bid:</span><span id="showBid">$0</span>
+              </div>
+            </div>
+            <button type="submit" class="btn-primary" style="width: 100%; font-size: 12px;">Create job</button>
+          </form>
         </div>
-        <div class="form-group">
-          <label>Profit margin: <span id="marginVal">40</span>%</label>
-          <input type="range" id="jobMargin" min="10" max="80" value="40">
-        </div>
-        <div class="price-breakdown">
-          <div class="breakdown-row"><span>Total cost:</span><span id="showCost">$0</span></div>
-          <div class="breakdown-row"><span>Profit (<span id="marginPct">40</span>%):</span><span id="showProfit">$0</span></div>
-          <div class="breakdown-row total bid"><span>Bid price:</span><span id="showBid">$0</span></div>
-        </div>
-        <button type="submit" class="btn-primary">Create job</button>
-      </form>
+      </div>
     </div>
 
     <!-- All Jobs -->
@@ -139,15 +183,30 @@
 
     <!-- Comparisons -->
     <div id="comparisons" class="content">
-      <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem;">
-        <h3 style="font-size: 16px; font-weight: 500; margin-bottom: 1rem;">Quick add from images</h3>
-        <div style="cursor: pointer; background: white; border: 2px dashed #e0e0e0; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 1.5rem;" id="compUploadBox">
-          <div style="font-size: 32px; margin-bottom: 0.5rem;">📸</div>
-          <p style="font-weight: 500; margin-bottom: 0.25rem;">Upload vendor quotes</p>
-          <p style="font-size: 13px; color: #666;">Screenshot or drag multiple images of vendor estimates</p>
-          <p style="font-size: 11px; color: #999; margin-top: 0.75rem;">We'll extract vendor, price, and date automatically</p>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+        <!-- Left: Paste text -->
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem;">
+          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">📝 Paste raw text</h3>
+          <p style="font-size: 12px; color: #666; margin-bottom: 0.75rem;">Paste email, text message, or invoice text:</p>
+          <textarea id="compTextInput" placeholder='Example: "ABC Masonry quoted $2500 for the driveway at 464 Ontario Dr"' style="width: 100%; height: 100px; margin-bottom: 0.75rem; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 12px; font-family: monospace;"></textarea>
+          <button class="btn-primary" onclick="extractComparisonFromText()" style="width: 100%;">Extract from text</button>
         </div>
-        <div id="uploadStatus"></div>
+
+        <!-- Right: Voice capture -->
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem;">
+          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">🎤 Or say it out loud</h3>
+          <p style="font-size: 12px; color: #666; margin-bottom: 0.75rem;">Speak the vendor quote:</p>
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+            <button class="btn-primary" id="compVoiceBtn" onclick="startCompVoice()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+              🎤 Start recording
+            </button>
+            <button onclick="stopCompVoice()" style="flex: 0.5; opacity: 0.5;" id="compVoiceStopBtn" disabled>Stop</button>
+          </div>
+          <div id="compVoiceText" style="background: #f5f5f5; padding: 0.75rem; border-radius: 4px; min-height: 40px; font-size: 12px; color: #666; font-style: italic;">Listening...</div>
+          <div style="margin-top: 0.75rem;">
+            <button class="btn-primary" onclick="extractComparisonFromVoice()" style="width: 100%;">Extract from voice</button>
+          </div>
+        </div>
       </div>
 
       <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; max-width: 600px;">
@@ -230,11 +289,214 @@
           </ol>
         </div>
       </div>
+
+    <!-- Tips -->
+    <div id="tips" class="content">
+      <div style="max-width: 800px;">
+        <h2 style="font-size: 16px; font-weight: 500; margin-bottom: 1.5rem;">📸 How to capture better quotes for automatic extraction</h2>
+        
+        <div style="background: #e0f2fe; border: 1px solid #0284c7; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+          <p style="font-size: 13px; color: #0c4a6e; line-height: 1.6; margin-bottom: 0;">
+            <strong>⚡ Fastest way:</strong> Speak, paste, or screenshot - the app extracts vendor name + price automatically. No typing needed.
+          </p>
+        </div>
+        
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">🎤 Voice capture (fastest on phone)</h3>
+          <div style="font-size: 13px; line-height: 1.8; color: #666;">
+            <p style="margin-bottom: 1rem;">Just speak naturally! Press "Start recording" and say the vendor + price. Tap Stop when done.</p>
+            <div style="background: #f9f9f9; padding: 1rem; border-left: 3px solid #10b981; border-radius: 4px; margin-bottom: 1rem; font-family: monospace; font-size: 12px;">
+              <strong>Examples:</strong><br>
+              ✓ "Bob from ABC Masonry quoted $2500 for the driveway"<br>
+              ✓ "Can do the job for $2851"<br>
+              ✓ "John's concrete, $3200 for patio at 464 Ontario"
+            </div>
+            <p style="color: #10b981; font-weight: 500;">Why this is best: Fastest on mobile, hands-free, works while you're on the phone with the vendor.</p>
+          </div>
+        </div>
+        
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">📝 Paste raw text (for saved messages)</h3>
+          <div style="font-size: 13px; line-height: 1.8; color: #666;">
+            <p style="margin-bottom: 1rem;">Already have the quote as text? Just paste it:</p>
+            <div style="background: #f9f9f9; padding: 1rem; border-left: 3px solid #10b981; border-radius: 4px; margin-bottom: 1rem; font-family: monospace; font-size: 12px;">
+              <strong>Examples that work:</strong><br>
+              ✓ "ABC Masonry quoted $2500 for the driveway at 464 Ontario"<br>
+              ✓ "Hi can do job for $2851"<br>
+              ✓ Pasted email with vendor name and price<br>
+              ✓ Text message from contractor
+            </div>
+            <p style="color: #10b981; font-weight: 500;">Why this is best: Works on any device, no microphone needed, copy/paste is instant.</p>
+          </div>
+        </div>
+          <div style="display: grid; gap: 1rem; font-size: 13px; line-height: 1.6;">
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Capture the vendor name clearly:</strong> ABC Masonry, John's Concrete, Pro Contractors - whatever it says, make sure it's readable in the photo/screenshot
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Include the total price prominently:</strong> Make sure the dollar amount is visible and clear - $2,500 or 2500 or "Total: $2,851"
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Show the project/job address if available:</strong> "464 Ontario Dr" or "Smith Residence" - helps group quotes together
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Use text screenshots when possible:</strong> Screenshot text messages, PDFs, or emails - these extract more reliably than photos
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Good lighting for photos:</strong> If taking a photo of a paper quote, use good lighting and shoot straight-on (not at an angle)
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Crop to the important part:</strong> Focus on the vendor name, price, and address - don't include unrelated stuff
+            </div>
+          </div>
+        </div>
+
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem; color: #dc2626;">✗ DON'T: What makes extraction harder</h3>
+          <div style="display: grid; gap: 1rem; font-size: 13px; line-height: 1.6;">
+            <div style="padding: 0.75rem; background: #fee2e2; border-left: 3px solid #dc2626; border-radius: 4px;">
+              <strong>Blurry or low-quality photos:</strong> Use your phone's "Photo" app, not old pics. Make sure text is readable.
+            </div>
+            <div style="padding: 0.75rem; background: #fee2e2; border-left: 3px solid #dc2626; border-radius: 4px;">
+              <strong>Angled/skewed photos:</strong> Shoot straight-on. Angled photos are harder to read.
+            </div>
+            <div style="padding: 0.75rem; background: #fee2e2; border-left: 3px solid #dc2626; border-radius: 4px;">
+              <strong>Multiple prices on one quote:</strong> If there's a discount and a total, make sure the TOTAL price is what gets extracted (we'll grab the biggest number we find)
+            </div>
+            <div style="padding: 0.75rem; background: #fee2e2; border-left: 3px solid #dc2626; border-radius: 4px;">
+              <strong>No vendor name at all:</strong> Just a price with no company name? Upload it anyway - we'll label it "Unknown vendor" and you can edit later
+            </div>
+            <div style="padding: 0.75rem; background: #fee2e2; border-left: 3px solid #dc2626; border-radius: 4px;">
+              <strong>Handwritten with messy writing:</strong> Photos of handwritten quotes are harder - type it in manually or take a clear photo if possible
+            </div>
+          </div>
+        </div>
+
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">⚡ Fastest workflow</h3>
+          <div style="font-size: 13px; line-height: 1.8; color: #666;">
+            <div style="margin-bottom: 1rem; padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>BEST: Use voice (on phone)</strong> — Tap record → Speak quote → Tap Stop → Extract
+            </div>
+            <div style="margin-bottom: 1rem; padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Quick: Paste text</strong> — Copy text → Paste → Extract → Done
+            </div>
+            <div style="margin-bottom: 1rem; padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Formal: Upload image</strong> — Upload PDF or screenshot → Extract → Fix details if needed
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Manual: Type it</strong> — Fill in address, vendor, price → Create
+            </div>
+          </div>
+        </div>
+
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem;">
+          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem; color: #10b981;">✓ Voice tips for better extraction</h3>
+          <div style="display: grid; gap: 1rem; font-size: 13px; line-height: 1.6;">
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Speak clearly:</strong> Say the vendor name, price, and address slowly and distinctly (same way you'd spell it over the phone)
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Use natural language:</strong> "ABC Masonry quoted $2500" works better than "vendor ABC Masonry price $2500"
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Say the dollar amount clearly:</strong> "Twenty-five hundred dollars" or "twenty five hundred" both work
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Quiet environment helps:</strong> Voice capture works best with minimal background noise
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Can edit anything after:</strong> Price extracted as $2400 instead of $2500? Just click Edit and fix it in 2 seconds
+            </div>
+          </div>
+        </div>
+          <p style="font-size: 13px; color: #666; margin-bottom: 1rem;">If you have formal quotes as PDFs or already have screenshots, you can upload those too.</p>
+          <div style="display: grid; gap: 1rem; font-size: 13px; line-height: 1.6;">
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Capture the vendor name clearly:</strong> ABC Masonry, John's Concrete, Pro Contractors - whatever it says, make sure it's readable in the photo/screenshot
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Include the total price prominently:</strong> Make sure the dollar amount is visible and clear - $2,500 or 2500 or "Total: $2,851"
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Good lighting for photos:</strong> If taking a photo of a paper quote, use good lighting and shoot straight-on (not at an angle)
+            </div>
+            <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px;">
+              <strong>Crop to the important part:</strong> Focus on the vendor name, price, and address - don't include unrelated stuff
+            </div>
+          </div>
+        </div>
+
+        <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 1.5rem;">
+          <p style="font-size: 13px; color: #1e40af; line-height: 1.6;">
+            <strong>💡 Pro tip:</strong> Prefer pasting text whenever possible - it's faster, no screenshots needed, and works great on phones. Only screenshot if you have a formal PDF quote or prefer visual confirmation.
+          </p>
+        </div>
+      </div>
+    </div>
+      </div>
+
+  <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.pdf">
+  <input type="file" id="compFileInput" accept=".jpg,.jpeg,.png,.pdf" multiple>
+
+  <div id="editCompModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 8px; padding: 2rem; max-width: 500px; width: 90%;">
+      <h2 style="font-size: 18px; font-weight: 500; margin-bottom: 1.5rem;">Edit estimate</h2>
+      <div class="form-group">
+        <label>Job address</label>
+        <input type="text" id="editCompAddress" placeholder="e.g., 464 Ontario Dr">
+      </div>
+      <div class="form-group">
+        <label>Vendor name</label>
+        <input type="text" id="editCompVendor" placeholder="e.g., ABC Masonry">
+      </div>
+      <div class="form-group">
+        <label>Quoted price</label>
+        <input type="number" id="editCompPrice" placeholder="2851">
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn-primary" onclick="saveComparisonEdit()" style="flex: 1;">Save</button>
+        <button onclick="closeEditCompModal()" style="flex: 1;">Cancel</button>
+      </div>
     </div>
   </div>
 
-  <input type="file" id="fileInput" accept="image/*">
-  <input type="file" id="compFileInput" accept="image/*" multiple>
+  <div id="editJobModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 8px; padding: 2rem; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+      <h2 style="font-size: 18px; font-weight: 500; margin-bottom: 1.5rem;">Edit job</h2>
+      <div class="form-group">
+        <label>Address</label>
+        <input type="text" id="editJobAddress" placeholder="e.g., 464 Ontario Dr">
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <input type="text" id="editJobDescription" placeholder="e.g., Driveway replacement">
+      </div>
+      <div class="grid-2">
+        <div class="form-group"><label>Yards</label><input type="number" id="editJobYards"></div>
+        <div class="form-group"><label>Cost</label><input type="number" id="editJobCost"></div>
+      </div>
+      <div class="form-group">
+        <label>Margin: <span id="editJobMarginVal">40</span>%</label>
+        <input type="range" id="editJobMargin" min="10" max="80" value="40" oninput="updateEditJobCalc()">
+      </div>
+      <div style="background: #f5f5f5; padding: 0.75rem; border-radius: 6px; margin-bottom: 1.5rem; font-size: 13px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+          <span>Cost:</span><span id="editJobCostShow">$0</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+          <span>Profit:</span><span id="editJobProfitShow">$0</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-weight: 500;">
+          <span>Bid:</span><span id="editJobBidShow">$0</span>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn-primary" onclick="saveJobEdit()" style="flex: 1;">Save</button>
+        <button onclick="closeEditJobModal()" style="flex: 1;">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     console.log('=== ELITE MASONRY APP STARTING ===');
@@ -266,7 +528,14 @@
       try {
         localStorage.setItem('elite-jobs', JSON.stringify(jobs));
         localStorage.setItem('elite-comps', JSON.stringify(comparisons));
-      } catch(e) { console.error('Save error:', e); }
+      } catch(e) { 
+        if (e.name === 'QuotaExceededError') {
+          console.error('LocalStorage quota exceeded. Data not saved.');
+          alert('⚠️ Storage limit reached. Please delete old jobs or comparisons.');
+        } else {
+          console.error('Save error:', e);
+        }
+      }
     }
 
     // Format currency
@@ -310,6 +579,8 @@
       document.getElementById('showBid').textContent = fmt(bid);
       document.getElementById('marginPct').textContent = actualMargin;
     }
+    
+    window.updatePriceBreakdown = calc;
 
     document.getElementById('jobCost').addEventListener('input', calc);
     document.getElementById('jobMargin').addEventListener('input', calc);
@@ -333,11 +604,21 @@
     document.getElementById('newJobForm').addEventListener('submit', function(e) {
       e.preventDefault();
       
-      const address = document.getElementById('jobAddress').value;
-      const desc = document.getElementById('jobDescription').value;
-      const yards = parseInt(document.getElementById('jobYards').value);
+      const address = document.getElementById('jobAddress').value.trim();
+      const desc = document.getElementById('jobDescription').value.trim();
+      const yards = parseInt(document.getElementById('jobYards').value) || 0;
       const cost = parseFloat(document.getElementById('jobCost').value);
       const margin = parseInt(document.getElementById('jobMargin').value);
+      
+      // Validation
+      if (!address) {
+        alert('Address is required');
+        return;
+      }
+      if (!cost || cost <= 0) {
+        alert('Cost must be a positive number');
+        return;
+      }
       
       const bid = Math.round(cost / (1 - margin / 100));
       const profit = bid - cost;
@@ -361,8 +642,6 @@
     });
 
     // IMAGE EXTRACTION (for jobs only)
-    document.getElementById('uploadBox').addEventListener('click', () => document.getElementById('fileInput').click());
-
     document.getElementById('uploadBox').addEventListener('click', () => {
       if (!ANTHROPIC_API_KEY) {
         alert('API key needed! Go to Settings and add your Anthropic API key.');
@@ -379,7 +658,54 @@
       const reader = new FileReader();
       reader.onload = async function(event) {
         const base64 = event.target.result.split(',')[1];
+        const fileType = file.type;
+        const fileName = file.name.toLowerCase();
         try {
+          // Determine content type and build message content
+          let content = [];
+          let mediaType = 'image/jpeg';
+          let contentType = 'image';
+          
+          if (fileType.includes('image/png') || fileName.endsWith('.png')) {
+            mediaType = 'image/png';
+            contentType = 'image';
+          } else if (fileType.includes('image/jpeg') || fileType.includes('image/jpg') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+            mediaType = 'image/jpeg';
+            contentType = 'image';
+          } else if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
+            mediaType = 'application/pdf';
+            contentType = 'document';
+          } else {
+            throw new Error('File type not supported. Use JPG, PNG, or PDF.');
+          }
+          
+          content.push({
+            type: contentType,
+            source: { 
+              type: 'base64', 
+              media_type: mediaType,
+              data: base64 
+            }
+          });
+          
+          content.push({
+            type: 'text',
+            text: `EXTRACT job cost from this image. User will fill in missing details later.
+
+PRIORITY: Find ANY price/cost/estimate number - this is MOST important
+SECONDARY: Find address, work description, square footage
+
+Return JSON exactly as shown:
+{"address":"","yards":null,"totalCost":NUMBER,"description":""}
+
+Use empty strings "" for missing text fields
+Use null for missing numbers (except totalCost - REQUIRED)
+
+Examples of prices to find: $2,500 | 2500 | $2500.00 | 2,500 dollars
+If you find ANY price: extract it as totalCost
+If NO price found: {"error":"No price/cost found"}`
+          });
+          
           const resp = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
             headers: {
@@ -391,34 +717,66 @@
               max_tokens: 500,
               messages: [{
                 role: 'user',
-                content: [{
-                  type: 'image',
-                  source: { type: 'base64', media_type: 'image/jpeg', data: base64 }
-                }, {
-                  type: 'text',
-                  text: 'Extract from this bid/estimate: { "address": "street address", "yards": number, "totalCost": number, "description": "work type" }. Return ONLY valid JSON, no markdown.'
-                }]
+                content: content
               }]
             })
           });
+          
+          if (!resp.ok) {
+            throw new Error(`API error: ${resp.status}`);
+          }
+          
           const data = await resp.json();
           if (data.error) throw new Error(data.error.message);
-          const text = data.content[0].text.replace(/```json|```/g, '').trim();
-          const extracted = JSON.parse(text);
           
-          if (extracted.address && extracted.totalCost) {
-            document.getElementById('jobAddress').value = extracted.address;
+          let text = data.content[0]?.text || '';
+          console.log('Raw API response:', text);
+          
+          // Strip markdown code blocks
+          text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          
+          // Find just the JSON object
+          let extracted = null;
+          try {
+            // Try to parse as-is first
+            extracted = JSON.parse(text);
+          } catch(e) {
+            // If that fails, try to extract just the JSON part
+            const jsonStart = text.indexOf('{');
+            const jsonEnd = text.lastIndexOf('}');
+            if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+              const jsonStr = text.substring(jsonStart, jsonEnd + 1);
+              console.log('Extracted JSON substring:', jsonStr);
+              try {
+                extracted = JSON.parse(jsonStr);
+              } catch (parseErr) {
+                console.error('Failed to parse extracted JSON:', parseErr);
+                throw new Error('Invalid JSON in extraction response');
+              }
+            } else {
+              throw new Error('Could not find JSON in response');
+            }
+          }
+          
+          console.log('Parsed extraction:', extracted);
+          
+          if (extracted.error) {
+            alert('❌ ' + extracted.error);
+          } else if (extracted.totalCost) {
+            // Accept whatever we got, user can edit later
+            document.getElementById('jobAddress').value = extracted.address || '';
             document.getElementById('jobDescription').value = extracted.description || '';
             document.getElementById('jobYards').value = extracted.yards || '';
-            document.getElementById('jobCost').value = extracted.totalCost || '';
+            document.getElementById('jobCost').value = extracted.totalCost;
             calc();
             document.querySelector('[data-tab="newjob"]').click();
+            console.log('✓ Job data extracted:', extracted);
           } else {
-            alert('Could not extract job details from image. Try a clearer photo.');
+            alert('❌ Could not extract a price. Try a clearer image or add manually.');
           }
         } catch(err) { 
-          console.error('Image processing error:', err);
-          alert('Error: ' + err.message); 
+          console.error('File processing error:', err);
+          alert('❌ Error: ' + err.message); 
         }
       };
       reader.readAsDataURL(file);
@@ -503,8 +861,9 @@
                       </div>
                     </div>
 
-                    <div style="border-top: 1px solid #e0e0e0; margin-top: 1rem; padding-top: 1rem;">
-                      <button class="btn-small" style="color: #dc2626; width: 100%;" onclick="deleteJob(${j.id})">Delete job</button>
+                    <div style="border-top: 1px solid #e0e0e0; margin-top: 1rem; padding-top: 1rem; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                      <button class="btn-small" style="color: #2563eb;" onclick="editJob(${j.id})">✎ Edit</button>
+                      <button class="btn-small" style="color: #dc2626;" onclick="deleteJob(${j.id})">Delete</button>
                     </div>
                   </div>
                 ` : ''}
@@ -522,78 +881,207 @@
         return;
       }
 
-      // Group by job address
-      const grouped = {};
+      // Group by job address (case-insensitive)
+      const jobAddresses = [...new Set(comparisons.map(c => c.address.toLowerCase()))].sort();
+      const jobGroups = {};
+      const addressDisplayMap = {}; // Map normalized to original
+      
+      jobAddresses.forEach(normalizedAddr => {
+        jobGroups[normalizedAddr] = [];
+      });
+      
       comparisons.forEach(c => {
-        if (!grouped[c.address]) grouped[c.address] = [];
-        grouped[c.address].push(c);
+        const normalized = c.address.toLowerCase();
+        jobGroups[normalized].push(c);
+        if (!addressDisplayMap[normalized]) {
+          addressDisplayMap[normalized] = c.address; // Keep original casing
+        }
       });
 
-      let html = '';
-      let summaryHtml = '';
+      // Calculate vendor stats across ALL jobs (case-insensitive)
+      const vendorNames = [...new Set(comparisons.map(c => c.vendor.toLowerCase()))].sort();
+      const vendorStats = {};
+      const vendorDisplayMap = {}; // Map normalized to original
+      
+      vendorNames.forEach(normalizedVendor => {
+        const vendorEstimates = comparisons.filter(c => c.vendor.toLowerCase() === normalizedVendor);
+        const totalCost = vendorEstimates.reduce((s, e) => s + e.price, 0);
+        const avgCost = totalCost / vendorEstimates.length;
+        vendorStats[normalizedVendor] = {
+          total: totalCost,
+          avg: avgCost,
+          count: vendorEstimates.length,
+          estimates: vendorEstimates
+        };
+        if (!vendorDisplayMap[normalizedVendor]) {
+          vendorDisplayMap[normalizedVendor] = vendorEstimates[0].vendor; // Keep original casing
+        }
+      });
 
-      Object.keys(grouped).sort().forEach(addr => {
-        const estimates = grouped[addr].sort((a, b) => a.price - b.price);
-        const minPrice = Math.min(...estimates.map(e => e.price));
-        const maxPrice = Math.max(...estimates.map(e => e.price));
-        const avgPrice = Math.round(estimates.reduce((s, e) => s + e.price, 0) / estimates.length);
-        const savings = maxPrice - minPrice;
+      // Calculate batch average
+      const batchAvg = comparisons.reduce((s, c) => s + c.price, 0) / comparisons.length;
+      const batchTotal = comparisons.reduce((s, c) => s + c.price, 0);
 
-        html += `
-          <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
-            <div style="font-weight: 500; margin-bottom: 1rem;">${addr}</div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #e0e0e0;">
-              <div>
-                <div style="font-size: 11px; color: #666; margin-bottom: 0.25rem;">Lowest</div>
-                <div style="font-size: 14px; font-weight: 500;">${fmt(minPrice)}</div>
-              </div>
-              <div>
-                <div style="font-size: 11px; color: #666; margin-bottom: 0.25rem;">Highest</div>
-                <div style="font-size: 14px; font-weight: 500;">${fmt(maxPrice)}</div>
-              </div>
-              <div>
-                <div style="font-size: 11px; color: #666; margin-bottom: 0.25rem;">Average</div>
-                <div style="font-size: 14px; font-weight: 500;">${fmt(avgPrice)}</div>
-              </div>
-              <div>
-                <div style="font-size: 11px; color: #666; margin-bottom: 0.25rem;">Savings</div>
-                <div style="font-size: 14px; font-weight: 500; color: #10b981;">${fmt(savings)}</div>
-              </div>
+      // Sort vendors by total cost
+      const sortedVendors = vendorNames.sort((a, b) => vendorStats[a].total - vendorStats[b].total);
+
+      // Build vendor leaderboard
+      let leaderboardHtml = `
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem;">
+          <h2 style="font-size: 16px; font-weight: 500; margin-bottom: 1.5rem;">Vendor summary (${comparisons.length} total estimates)</h2>
+          <div style="display: grid; gap: 0.75rem;">
+      `;
+
+      sortedVendors.forEach((vendor, idx) => {
+        const vendorDisplay = vendorDisplayMap[vendor];
+        const stats = vendorStats[vendor];
+        const variance = ((stats.avg - batchAvg) / batchAvg * 100).toFixed(1);
+        const savings = batchTotal - stats.total;
+        const badge = idx === 0 ? '🏆 Best' : idx === sortedVendors.length - 1 ? '⚠️ Most' : '';
+        const color = variance < 0 ? '#10b981' : '#dc2626';
+        const icon = variance < 0 ? '↓' : '↑';
+
+        leaderboardHtml += `
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem; padding: 1rem; background: ${idx === 0 ? '#f0fdf4' : '#fafafa'}; border-radius: 6px; align-items: center;">
+            <div>
+              <div style="font-weight: 500;">${vendorDisplay}</div>
+              <div style="font-size: 12px; color: #666;">${stats.count} estimate${stats.count > 1 ? 's' : ''}</div>
             </div>
-            ${estimates.map((e, idx) => `
-              <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; ${idx < estimates.length - 1 ? 'border-bottom: 1px solid #e0e0e0;' : ''}">
-                <div>
-                  <div style="font-weight: 500; font-size: 14px;">${e.vendor}</div>
-                  <div style="font-size: 12px; color: #666;">${e.price === minPrice ? '✓ Best price' : ''}</div>
-                </div>
-                <div style="display: flex; align-items: center; gap: 1rem;">
-                  <div style="font-weight: 500; text-align: right;">${fmt(e.price)}</div>
-                  <button class="btn-small" style="padding: 4px 8px; color: #dc2626;" onclick="removeComp(${e.id})">✕</button>
-                </div>
-              </div>
-            `).join('')}
+            <div style="text-align: center;">
+              <div style="font-weight: 500; font-size: 14px;">${fmt(stats.total)}</div>
+              <div style="font-size: 11px; color: #999;">Total cost</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="font-weight: 500; color: ${color};">${icon} ${Math.abs(variance)}%</div>
+              <div style="font-size: 11px; color: #999;">vs avg</div>
+            </div>
+            <div style="text-align: right;">
+              ${idx === 0 && sortedVendors.length > 1 ? `
+                <div style="font-weight: 500; color: #10b981;">Save ${fmt(savings)}</div>
+                <div style="font-size: 11px; color: #666;">vs most</div>
+              ` : badge ? `<div style="font-size: 12px;">${badge}</div>` : ''}
+            </div>
           </div>
         `;
       });
 
-      if (comparisons.length > 0) {
-        const allPrices = comparisons.map(c => c.price);
-        const avgAll = Math.round(allPrices.reduce((s, p) => s + p, 0) / allPrices.length);
-        summaryHtml = `
-          <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem;">
-            <div style="font-weight: 500; margin-bottom: 1rem;">Overall summary</div>
-            <div style="display: grid; gap: 0.75rem; font-size: 13px;">
-              <div style="display: flex; justify-content: space-between;"><span style="color: #666;">Total estimates</span><span style="font-weight: 500;">${comparisons.length}</span></div>
-              <div style="display: flex; justify-content: space-between;"><span style="color: #666;">Average price</span><span style="font-weight: 500;">${fmt(avgAll)}</span></div>
-              <div style="display: flex; justify-content: space-between;"><span style="color: #666;">Lowest found</span><span style="font-weight: 500; color: #10b981;">${fmt(Math.min(...allPrices))}</span></div>
-              <div style="display: flex; justify-content: space-between;"><span style="color: #666;">Highest found</span><span style="font-weight: 500; color: #dc2626;">${fmt(Math.max(...allPrices))}</span></div>
+      leaderboardHtml += `</div></div>`;
+
+      // Build per-job matrix (using normalized addresses but display original)
+      let matrixHtml = `
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem;">
+          <h2 style="font-size: 16px; font-weight: 500; margin-bottom: 1.5rem;">Price breakdown by job</h2>
+      `;
+
+      jobAddresses.forEach(normalizedAddr => {
+        const displayAddr = addressDisplayMap[normalizedAddr];
+        const jobEstimates = jobGroups[normalizedAddr];
+        const jobMin = Math.min(...jobEstimates.map(e => e.price));
+        const jobMax = Math.max(...jobEstimates.map(e => e.price));
+        const jobAvg = jobEstimates.reduce((s, e) => s + e.price, 0) / jobEstimates.length;
+        const jobSavings = jobMax - jobMin;
+
+        matrixHtml += `
+          <div style="margin-bottom: 2rem; padding-bottom: 2rem; border-bottom: 1px solid #e0e0e0;">
+            <div style="font-weight: 500; margin-bottom: 0.75rem;">${displayAddr}</div>
+            <div style="display: grid; gap: 0.5rem;">
+        `;
+
+        jobEstimates.sort((a, b) => a.price - b.price).forEach(est => {
+          const variance = ((est.price - jobAvg) / jobAvg * 100).toFixed(1);
+          const isBest = est.price === jobMin;
+          const priceDiff = est.price - jobMin;
+          const priceDiffPct = ((priceDiff / jobMin) * 100).toFixed(1);
+
+          matrixHtml += `
+            <div style="display: grid; grid-template-columns: 140px 1fr 80px 80px 60px; gap: 1rem; padding: 0.75rem; background: ${isBest ? '#f0fdf4' : '#fafafa'}; border-radius: 4px; align-items: center;">
+              <div style="font-weight: 500; font-size: 13px;">${est.vendor}</div>
+              <div style="text-align: right;">
+                <div style="font-weight: 500;">${fmt(est.price)}</div>
+              </div>
+              <div style="text-align: center; font-size: 12px;">
+                ${isBest ? '<span style="color: #10b981; font-weight: 500;">✓ Best</span>' : `
+                  <span style="color: #666;">+${fmt(priceDiff)}</span><br>
+                  <span style="color: #999; font-size: 11px;">(+${priceDiffPct}%)</span>
+                `}
+              </div>
+              <div style="text-align: right; font-size: 12px; color: ${variance < 0 ? '#10b981' : '#dc2626'};">
+                ${variance < 0 ? '↓' : '↑'} ${Math.abs(variance)}%
+              </div>
+              <button class="btn-small" style="padding: 4px 8px;" onclick="editComparison(${est.id})">✎ Edit</button>
             </div>
+          `;
+        });
+
+        matrixHtml += `
+            </div>
+            <div style="margin-top: 0.75rem; padding: 0.5rem; background: #f5f5f5; border-radius: 4px; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 0.5rem; font-size: 12px;">
+              <div><span style="color: #666;">Low:</span> <span style="font-weight: 500;">${fmt(jobMin)}</span></div>
+              <div><span style="color: #666;">High:</span> <span style="font-weight: 500;">${fmt(jobMax)}</span></div>
+              <div><span style="color: #666;">Avg:</span> <span style="font-weight: 500;">${fmt(jobAvg)}</span></div>
+              <div><span style="color: #10b981; font-weight: 500;">Save ${fmt(jobSavings)}</span></div>
+            </div>
+          </div>
+        `;
+      });
+
+      matrixHtml += `</div>`;
+
+      // Build insights section
+      let insightsHtml = `
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem;">
+          <h2 style="font-size: 16px; font-weight: 500; margin-bottom: 1rem;">Insights & negotiation points</h2>
+          <div style="display: grid; gap: 1rem; font-size: 13px; line-height: 1.6;">
+      `;
+
+      // Insight: Best vendor overall
+      const bestVendor = vendorDisplayMap[sortedVendors[0]];
+      const worstVendor = vendorDisplayMap[sortedVendors[sortedVendors.length - 1]];
+      const totalSavings = vendorStats[sortedVendors[sortedVendors.length - 1]].total - vendorStats[sortedVendors[0]].total;
+      insightsHtml += `
+        <div style="padding: 0.75rem; background: #f0fdf4; border-left: 3px solid #10b981;">
+          <strong>${bestVendor}</strong> is your lowest-cost option across the board.
+          ${sortedVendors.length > 1 ? `Using them exclusively would save <strong>${fmt(totalSavings)}</strong> vs ${worstVendor}.` : ''}
+        </div>
+      `;
+
+      // Insight: Consistency
+      const consistency = {};
+      vendorNames.forEach(normalizedVendor => {
+        const prices = comparisons.filter(c => c.vendor.toLowerCase() === normalizedVendor).map(c => c.price);
+        const avg = prices.reduce((a, b) => a + b) / prices.length;
+        const variance = Math.sqrt(prices.reduce((s, p) => s + Math.pow(p - avg, 2), 0) / prices.length);
+        consistency[normalizedVendor] = { variance, avg, cv: (variance / avg * 100).toFixed(1) };
+      });
+
+      const mostConsistentNorm = vendorNames.sort((a, b) => consistency[a].cv - consistency[b].cv)[0];
+      const mostConsistent = vendorDisplayMap[mostConsistentNorm];
+      insightsHtml += `
+        <div style="padding: 0.75rem; background: #eff6ff; border-left: 3px solid #2563eb;">
+          <strong>${mostConsistent}</strong> is most consistent in pricing (${consistency[mostConsistentNorm].cv}% variance).
+          Good for predictable budgeting.
+        </div>
+      `;
+
+      // Insight: Batch opportunity
+      if (sortedVendors.length > 1) {
+        const topTwo = sortedVendors.slice(0, 2);
+        const difference = vendorStats[topTwo[1]].total - vendorStats[topTwo[0]].total;
+        const diffPct = (difference / vendorStats[topTwo[0]].total * 100).toFixed(1);
+        const topVendor1 = vendorDisplayMap[topTwo[0]];
+        const topVendor2 = vendorDisplayMap[topTwo[1]];
+        insightsHtml += `
+          <div style="padding: 0.75rem; background: #fef3c7; border-left: 3px solid #f59e0b;">
+            <strong>Negotiation angle:</strong> ${topVendor1} and ${topVendor2} are close (${diffPct}% difference).
+            Use ${topVendor1}'s quotes to negotiate better rates with ${topVendor2}.
           </div>
         `;
       }
 
-      document.getElementById('compList').innerHTML = html;
-      document.getElementById('compSummary').innerHTML = summaryHtml;
+      insightsHtml += `</div></div>`;
+
+      document.getElementById('compList').innerHTML = leaderboardHtml + matrixHtml + insightsHtml;
+      document.getElementById('compSummary').innerHTML = '';
     }
 
     function renderContracts() {
@@ -741,6 +1229,319 @@
         renderDash();
       }
     };
+    window.extractComparisonFromText = async function() {
+      const text = document.getElementById('compTextInput').value.trim();
+      if (!text) {
+        alert('Please paste some text first');
+        return;
+      }
+
+      const apiKey = localStorage.getItem('elite-api-key');
+      if (!apiKey) {
+        alert('Please set your API key in Settings first');
+        return;
+      }
+
+      try {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01"
+          },
+          body: JSON.stringify({
+            model: "claude-opus-4-1",
+            max_tokens: 500,
+            messages: [{
+              role: "user",
+              content: `Extract vendor quote details from this text. Return ONLY a JSON object (no markdown, no explanation):
+{
+  "vendor": "Company name or 'Unknown vendor' if not found",
+  "price": number (just the price, no $ sign),
+  "address": "Job address or empty string",
+  "date": "Date if mentioned, or empty string"
+}
+
+Text to parse: "${text.replace(/"/g, '\\"')}"
+
+Important: price MUST be a number. If you can't find it, return 0.`
+            }]
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        // Check for API errors
+        if (data.error) {
+          throw new Error(data.error.message || 'API error');
+        }
+        
+        if (!data.content || !Array.isArray(data.content) || data.content.length === 0) {
+          throw new Error('No response from API');
+        }
+        
+        let extracted = { vendor: "Unknown vendor", price: 0, address: "", date: "" };
+        
+        if (data.content[0]) {
+          const responseText = data.content[0].text.trim();
+          const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          const start = cleaned.indexOf('{');
+          const end = cleaned.lastIndexOf('}') + 1;
+          if (start >= 0 && end > start) {
+            try {
+              extracted = JSON.parse(cleaned.substring(start, end));
+            } catch (parseErr) {
+              console.error('JSON parse error:', parseErr, 'text:', cleaned.substring(start, end));
+              extracted = { vendor: "Unknown vendor", price: 0, address: "", date: "" };
+            }
+          }
+        }
+
+        document.getElementById('compAddress').value = extracted.address || '';
+        document.getElementById('compVendor').value = extracted.vendor || 'Unknown vendor';
+        document.getElementById('compPrice').value = (extracted.price && extracted.price > 0) ? extracted.price : '';
+        document.getElementById('compTextInput').value = '';
+        
+        if (!extracted.price || extracted.price <= 0) {
+          alert('⚠️ Could not extract a valid price. Please enter it manually.');
+        }
+      } catch (err) {
+        console.error('Extraction error:', err);
+        alert('Error extracting text. Make sure your API key is valid.');
+      }
+    };
+
+    // Speech recognition setup
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let jobRecognition, compRecognition;
+    let jobVoiceTranscript = '', compVoiceTranscript = '';
+    
+    if (SpeechRecognition) {
+      jobRecognition = new SpeechRecognition();
+      jobRecognition.continuous = false;
+      jobRecognition.interimResults = true;
+      jobRecognition.lang = 'en-US';
+      
+      jobRecognition.onstart = function() {
+        jobVoiceTranscript = '';
+        document.getElementById('jobVoiceText').textContent = 'Listening...';
+        document.getElementById('jobVoiceText').style.color = '#10b981';
+        document.getElementById('jobVoiceBtn').disabled = true;
+        document.getElementById('jobVoiceStopBtn').disabled = false;
+      };
+      
+      jobRecognition.onresult = function(event) {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        if (event.results[event.results.length - 1].isFinal) {
+          jobVoiceTranscript = transcript;
+        }
+        document.getElementById('jobVoiceText').textContent = transcript || 'Listening...';
+      };
+      
+      jobRecognition.onend = function() {
+        document.getElementById('jobVoiceBtn').disabled = false;
+        document.getElementById('jobVoiceStopBtn').disabled = true;
+        if (jobVoiceTranscript) {
+          document.getElementById('jobVoiceText').textContent = jobVoiceTranscript;
+          document.getElementById('jobVoiceText').style.color = '#333';
+        }
+      };
+      
+      jobRecognition.onerror = function(event) {
+        document.getElementById('jobVoiceText').textContent = 'Error: ' + event.error;
+        document.getElementById('jobVoiceText').style.color = '#dc2626';
+        document.getElementById('jobVoiceBtn').disabled = false;
+        document.getElementById('jobVoiceStopBtn').disabled = true;
+      };
+
+      // Comparisons voice recognition
+      compRecognition = new SpeechRecognition();
+      compRecognition.continuous = false;
+      compRecognition.interimResults = true;
+      compRecognition.lang = 'en-US';
+      
+      compRecognition.onstart = function() {
+        compVoiceTranscript = '';
+        document.getElementById('compVoiceText').textContent = 'Listening...';
+        document.getElementById('compVoiceText').style.color = '#10b981';
+        document.getElementById('compVoiceBtn').disabled = true;
+        document.getElementById('compVoiceStopBtn').disabled = false;
+      };
+      
+      compRecognition.onresult = function(event) {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
+        }
+        if (event.results[event.results.length - 1].isFinal) {
+          compVoiceTranscript = transcript;
+        }
+        document.getElementById('compVoiceText').textContent = transcript || 'Listening...';
+      };
+      
+      compRecognition.onend = function() {
+        document.getElementById('compVoiceBtn').disabled = false;
+        document.getElementById('compVoiceStopBtn').disabled = true;
+        if (compVoiceTranscript) {
+          document.getElementById('compVoiceText').textContent = compVoiceTranscript;
+          document.getElementById('compVoiceText').style.color = '#333';
+        }
+      };
+      
+      compRecognition.onerror = function(event) {
+        document.getElementById('compVoiceText').textContent = 'Error: ' + event.error;
+        document.getElementById('compVoiceText').style.color = '#dc2626';
+        document.getElementById('compVoiceBtn').disabled = false;
+        document.getElementById('compVoiceStopBtn').disabled = true;
+      };
+    } else {
+      document.getElementById('jobVoiceBtn').textContent = '🎤 Not supported in this browser';
+      document.getElementById('jobVoiceBtn').disabled = true;
+      document.getElementById('compVoiceBtn').textContent = '🎤 Not supported in this browser';
+      document.getElementById('compVoiceBtn').disabled = true;
+    }
+    
+    window.startJobVoice = function() {
+      if (jobRecognition) {
+        jobRecognition.start();
+      }
+    };
+    
+    window.stopJobVoice = function() {
+      if (jobRecognition) {
+        jobRecognition.stop();
+      }
+    };
+    
+    window.extractJobFromVoice = async function() {
+      if (!jobVoiceTranscript || jobVoiceTranscript.trim().length === 0) {
+        alert('No speech detected. Please try again.');
+        return;
+      }
+      document.getElementById('jobTextInput').value = jobVoiceTranscript.trim();
+      await extractJobFromText();
+    };
+    
+    window.startCompVoice = function() {
+      if (compRecognition) {
+        compRecognition.start();
+      }
+    };
+    
+    window.stopCompVoice = function() {
+      if (compRecognition) {
+        compRecognition.stop();
+      }
+    };
+    
+    window.extractComparisonFromVoice = async function() {
+      if (!compVoiceTranscript || compVoiceTranscript.trim().length === 0) {
+        alert('No speech detected. Please try again.');
+        return;
+      }
+      document.getElementById('compTextInput').value = compVoiceTranscript.trim();
+      await extractComparisonFromText();
+    };
+
+    window.extractJobFromText = async function() {
+      const text = document.getElementById('jobTextInput').value.trim();
+      if (!text) {
+        alert('Please paste some text first');
+        return;
+      }
+
+      const apiKey = localStorage.getItem('elite-api-key');
+      if (!apiKey) {
+        alert('Please set your API key in Settings first');
+        return;
+      }
+
+      try {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01"
+          },
+          body: JSON.stringify({
+            model: "claude-opus-4-1",
+            max_tokens: 500,
+            messages: [{
+              role: "user",
+              content: `Extract job details from this text. Return ONLY a JSON object (no markdown, no explanation):
+{
+  "address": "Job address or 'Unknown address' if not found",
+  "description": "Brief description of work",
+  "yards": number (estimated or 0 if not mentioned),
+  "totalCost": number (just the cost, no $ sign)
+}
+
+Text to parse: "${text.replace(/"/g, '\\"')}"
+
+Important: totalCost MUST be a number. If you can't find it, return 0. Yards can be 0 if not mentioned.`
+            }]
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        // Check for API errors
+        if (data.error) {
+          throw new Error(data.error.message || 'API error');
+        }
+        
+        if (!data.content || !Array.isArray(data.content) || data.content.length === 0) {
+          throw new Error('No response from API');
+        }
+        
+        let extracted = { address: "Unknown address", description: "", yards: 0, totalCost: 0 };
+        
+        if (data.content[0]) {
+          const responseText = data.content[0].text.trim();
+          const cleaned = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          const start = cleaned.indexOf('{');
+          const end = cleaned.lastIndexOf('}') + 1;
+          if (start >= 0 && end > start) {
+            try {
+              extracted = JSON.parse(cleaned.substring(start, end));
+            } catch (parseErr) {
+              console.error('JSON parse error:', parseErr, 'text:', cleaned.substring(start, end));
+              extracted = { address: "Unknown address", description: "", yards: 0, totalCost: 0 };
+            }
+          }
+        }
+
+        document.getElementById('jobAddress').value = extracted.address || '';
+        document.getElementById('jobDescription').value = extracted.description || '';
+        document.getElementById('jobYards').value = (extracted.yards && extracted.yards > 0) ? extracted.yards : '';
+        document.getElementById('jobCost').value = (extracted.totalCost && extracted.totalCost > 0) ? extracted.totalCost : '';
+        document.getElementById('jobTextInput').value = '';
+        
+        if (!extracted.totalCost || extracted.totalCost <= 0) {
+          alert('⚠️ Could not extract a valid cost. Please enter it manually.');
+        }
+        
+        // Update price breakdown
+        updatePriceBreakdown();
+      } catch (err) {
+        console.error('Extraction error:', err);
+        alert('Error extracting text. Make sure your API key is valid.');
+      }
+    };
+
     window.addComparison = function() {
       const address = document.getElementById('compAddress').value.trim();
       const vendor = document.getElementById('compVendor').value.trim();
@@ -786,16 +1587,69 @@
       if (files.length === 0) return;
       
       const statusDiv = document.getElementById('uploadStatus');
-      statusDiv.innerHTML = `<div style="color: #2563eb;">Processing ${files.length} image${files.length > 1 ? 's' : ''}...</div>`;
+      statusDiv.innerHTML = `<div style="color: #2563eb;">Processing ${files.length} file${files.length > 1 ? 's' : ''}...</div>`;
       
       let processed = 0;
       let failed = 0;
+      const errors = [];
 
       for (const file of files) {
         const reader = new FileReader();
         reader.onload = async function(event) {
           try {
             const base64 = event.target.result.split(',')[1];
+            const fileType = file.type;
+            const fileName = file.name.toLowerCase();
+            
+            console.log(`Processing ${file.name} (${fileType})...`);
+            
+            // Determine content type
+            let content = [];
+            let mediaType = 'image/jpeg';
+            let contentType = 'image';
+            
+            if (fileType.includes('image/png') || fileName.endsWith('.png')) {
+              mediaType = 'image/png';
+              contentType = 'image';
+            } else if (fileType.includes('image/jpeg') || fileType.includes('image/jpg') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+              mediaType = 'image/jpeg';
+              contentType = 'image';
+            } else if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
+              mediaType = 'application/pdf';
+              contentType = 'document';
+            } else {
+              throw new Error('Unsupported file type (use JPG, PNG, or PDF)');
+            }
+            
+            content.push({
+              type: contentType,
+              source: { 
+                type: 'base64', 
+                media_type: mediaType,
+                data: base64 
+              }
+            });
+            
+            content.push({
+              type: 'text',
+              text: `EXTRACT vendor quote price from this image. User will fill in missing details later.
+
+PRIORITY: Find ANY price/quote/cost number - this is MOST important
+SECONDARY: Find vendor/company name and project address
+
+Return JSON exactly as shown:
+{"address":"","vendor":"","price":NUMBER,"date":""}
+
+Use empty strings "" for missing text fields
+
+Examples of prices: $2,500 | 2500 | $2500.00 | quote for 2500 | estimate 3000
+Examples of vendors: ABC Masonry | John's Concrete | contractor name | company name
+
+If you find ANY price: extract it as price
+If you see ANY company/business name: extract as vendor
+If NO price found: {"error":"No price in image"}`
+            });
+            
             const resp = await fetch('https://api.anthropic.com/v1/messages', {
               method: 'POST',
               headers: {
@@ -807,52 +1661,216 @@
                 max_tokens: 500,
                 messages: [{
                   role: 'user',
-                  content: [{
-                    type: 'image',
-                    source: { type: 'base64', media_type: 'image/jpeg', data: base64 }
-                  }, {
-                    type: 'text',
-                    text: 'Extract from this vendor quote/estimate: { "address": "job/project address", "vendor": "vendor/company name", "price": number, "date": "date if visible" }. Return ONLY valid JSON, no markdown.'
-                  }]
+                  content: content
                 }]
               })
             });
-            const data = await resp.json();
-            if (data.error) throw new Error(data.error.message);
-            const text = data.content[0].text.replace(/```json|```/g, '').trim();
-            const extracted = JSON.parse(text);
             
-            if (extracted.vendor && extracted.price) {
+            if (!resp.ok) {
+              throw new Error(`API error: ${resp.status}`);
+            }
+            
+            const data = await resp.json();
+            if (data.error) {
+              throw new Error(data.error.message);
+            }
+            
+            const text = data.content[0]?.text || '';
+            console.log(`Response for ${file.name}:`, text);
+            
+            // Strip markdown code blocks
+            let cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            
+            let extracted = null;
+            try {
+              // Try to parse as-is first
+              extracted = JSON.parse(cleanText);
+            } catch(e) {
+              // If that fails, try to extract just the JSON part
+              const jsonStart = cleanText.indexOf('{');
+              const jsonEnd = cleanText.lastIndexOf('}');
+              if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+                const jsonStr = cleanText.substring(jsonStart, jsonEnd + 1);
+                console.log(`Extracted JSON from ${file.name}:`, jsonStr);
+                try {
+                  extracted = JSON.parse(jsonStr);
+                } catch (parseErr) {
+                  console.error(`Failed to parse JSON from ${file.name}:`, parseErr);
+                  throw new Error('Invalid JSON in extraction response');
+                }
+              } else {
+                throw new Error('No JSON found in response');
+              }
+            }
+            
+            console.log(`Extracted from ${file.name}:`, extracted);
+            
+            if (extracted.error) {
+              errors.push(`${file.name}: ${extracted.error}`);
+              failed++;
+            } else if (extracted.price) {
+              // Grab whatever we extracted, user can fix details later
               comparisons.push({
                 id: Date.now() + Math.random(),
-                address: extracted.address || 'Unknown address',
-                vendor: extracted.vendor,
-                price: extracted.price,
-                date: extracted.date || new Date().toISOString().split('T')[0],
+                address: (extracted.address && extracted.address !== 'NA') ? extracted.address : 'Unknown address',
+                vendor: (extracted.vendor && extracted.vendor !== 'UNKNOWN') ? extracted.vendor.trim() : 'Unknown vendor',
+                price: typeof extracted.price === 'number' ? extracted.price : parseFloat(extracted.price),
+                date: (extracted.date && extracted.date !== 'NA') ? extracted.date : new Date().toISOString().split('T')[0],
                 created: new Date().toISOString()
               });
               processed++;
+              const whatGot = [
+                extracted.vendor ? 'vendor' : null,
+                extracted.price ? 'price' : null,
+                extracted.address && extracted.address !== 'NA' ? 'address' : null
+              ].filter(Boolean).join(', ');
+              console.log(`✓ Added ${file.name} (got: ${whatGot})`);
             } else {
+              errors.push(`${file.name}: No price found in image`);
               failed++;
             }
           } catch(err) {
-            console.error('Image processing error:', err);
+            console.error(`Error processing ${file.name}:`, err);
+            errors.push(`${file.name}: ${err.message}`);
             failed++;
           }
 
           if (processed + failed === files.length) {
             save();
             renderComps();
-            if (failed > 0) {
-              statusDiv.innerHTML = `<div style="color: #059669;">✓ Added ${processed} estimate${processed > 1 ? 's' : ''} (${failed} could not be read)</div>`;
-            } else {
-              statusDiv.innerHTML = `<div style="color: #059669;">✓ Added ${processed} estimate${processed > 1 ? 's' : ''}!</div>`;
+            
+            let message = '';
+            if (processed > 0) {
+              message += `✓ Added ${processed} estimate${processed > 1 ? 's' : ''}`;
             }
-            setTimeout(() => { statusDiv.innerHTML = ''; }, 3000);
+            if (failed > 0) {
+              message += (processed > 0 ? ' • ' : '') + `⚠️ ${failed} failed`;
+            }
+            
+            const html = `<div style="color: ${processed > 0 ? '#059669' : '#dc2626'}; font-size: 13px; line-height: 1.6;">
+              ${message}
+              ${errors.length > 0 ? `<div style="margin-top: 0.5rem; padding: 0.5rem; background: #fef2f2; border-radius: 4px; font-size: 12px; color: #991b1b;">
+                ${errors.map(e => `• ${e}`).join('<br>')}
+              </div>` : ''}
+            </div>`;
+            
+            statusDiv.innerHTML = html;
+            setTimeout(() => { statusDiv.innerHTML = ''; }, 6000);
           }
         };
         reader.readAsDataURL(file);
       }
+    });
+
+    // EDIT FUNCTIONS
+    let editingCompId = null;
+    let editingJobId = null;
+
+    window.editComparison = function(id) {
+      const comp = comparisons.find(c => c.id === id);
+      if (!comp) return;
+      editingCompId = id;
+      document.getElementById('editCompAddress').value = comp.address;
+      document.getElementById('editCompVendor').value = comp.vendor;
+      document.getElementById('editCompPrice').value = comp.price;
+      document.getElementById('editCompModal').style.display = 'flex';
+    };
+
+    window.saveComparisonEdit = function() {
+      const comp = comparisons.find(c => c.id === editingCompId);
+      if (!comp) return;
+      
+      comp.address = document.getElementById('editCompAddress').value.trim();
+      comp.vendor = document.getElementById('editCompVendor').value.trim();
+      comp.price = parseFloat(document.getElementById('editCompPrice').value);
+      
+      if (!comp.address || !comp.vendor || !comp.price) {
+        alert('Please fill in all fields');
+        return;
+      }
+      
+      save();
+      renderComps();
+      closeEditCompModal();
+    };
+
+    window.closeEditCompModal = function() {
+      document.getElementById('editCompModal').style.display = 'none';
+      editingCompId = null;
+    };
+
+    window.editJob = function(id) {
+      const job = jobs.find(j => j.id === id);
+      if (!job) return;
+      editingJobId = id;
+      document.getElementById('editJobAddress').value = job.address;
+      document.getElementById('editJobDescription').value = job.desc;
+      document.getElementById('editJobYards').value = job.yards;
+      document.getElementById('editJobCost').value = job.cost;
+      document.getElementById('editJobMargin').value = job.margin;
+      document.getElementById('editJobMarginVal').textContent = job.margin;
+      updateEditJobCalc();
+      document.getElementById('editJobModal').style.display = 'flex';
+    };
+
+    window.updateEditJobCalc = function() {
+      const cost = parseFloat(document.getElementById('editJobCost').value) || 0;
+      const margin = parseInt(document.getElementById('editJobMargin').value);
+      const bid = cost > 0 ? Math.round(cost / (1 - margin / 100)) : 0;
+      const profit = bid - cost;
+      
+      document.getElementById('editJobMarginVal').textContent = margin;
+      document.getElementById('editJobCostShow').textContent = fmt(cost);
+      document.getElementById('editJobProfitShow').textContent = fmt(profit);
+      document.getElementById('editJobBidShow').textContent = fmt(bid);
+    };
+
+    document.getElementById('editJobCost').addEventListener('input', updateEditJobCalc);
+    document.getElementById('editJobMargin').addEventListener('input', updateEditJobCalc);
+
+    window.saveJobEdit = function() {
+      const job = jobs.find(j => j.id === editingJobId);
+      if (!job) return;
+      
+      const address = document.getElementById('editJobAddress').value.trim();
+      const desc = document.getElementById('editJobDescription').value.trim();
+      const yards = parseInt(document.getElementById('editJobYards').value) || 0;
+      const cost = parseFloat(document.getElementById('editJobCost').value) || 0;
+      const margin = parseInt(document.getElementById('editJobMargin').value);
+      
+      if (!address || !cost) {
+        alert('Address and cost are required');
+        return;
+      }
+      
+      const bid = Math.round(cost / (1 - margin / 100));
+      const profit = bid - cost;
+      
+      job.address = address;
+      job.desc = desc;
+      job.yards = yards;
+      job.cost = cost;
+      job.bid = bid;
+      job.profit = profit;
+      job.margin = margin;
+      
+      save();
+      renderJobs();
+      renderDash();
+      closeEditJobModal();
+    };
+
+    window.closeEditJobModal = function() {
+      document.getElementById('editJobModal').style.display = 'none';
+      editingJobId = null;
+    };
+
+    // Close modals when clicking outside
+    document.getElementById('editCompModal').addEventListener('click', function(e) {
+      if (e.target === this) closeEditCompModal();
+    });
+    document.getElementById('editJobModal').addEventListener('click', function(e) {
+      if (e.target === this) closeEditJobModal();
     });
 
     // INIT
