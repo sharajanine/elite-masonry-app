@@ -178,11 +178,19 @@
 
     <!-- All Jobs -->
     <div id="jobs" class="content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <h2 style="font-size: 18px; font-weight: 500;">All Jobs</h2>
+        <button onclick="exportJobsAsCSV()" style="padding: 8px 12px; font-size: 12px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer;">📥 Export as CSV</button>
+      </div>
       <div id="jobsList"></div>
     </div>
 
     <!-- Comparisons -->
     <div id="comparisons" class="content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <h2 style="font-size: 18px; font-weight: 500;">Price Comparisons</h2>
+        <button onclick="exportComparisonsAsCSV()" style="padding: 8px 12px; font-size: 12px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer;">📥 Export as CSV</button>
+      </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
         <!-- Left: Paste text -->
         <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem;">
@@ -233,6 +241,10 @@
 
     <!-- Contracts -->
     <div id="contracts" class="content">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+        <h2 style="font-size: 18px; font-weight: 500;">Net 30 Tracking</h2>
+        <button onclick="exportPaymentsAsCSV()" style="padding: 8px 12px; font-size: 12px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer;">📥 Export as CSV</button>
+      </div>
       <div id="contractList"></div>
     </div>
 
@@ -287,6 +299,20 @@
             <li>Paste it above and click Save</li>
             <li>Image uploads will now work!</li>
           </ol>
+        </div>
+
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem;">
+          <h2 style="font-size: 16px; font-weight: 500; margin-bottom: 1rem;">💾 Data Backup & Export</h2>
+          <p style="font-size: 13px; color: #666; margin-bottom: 1rem;">Export all your jobs and comparisons for backup or migration</p>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 1rem;">
+            <button onclick="exportAllAsJSON()" style="padding: 10px 12px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer; font-size: 13px;">💾 Export All as JSON</button>
+            <button onclick="importFromJSON()" style="padding: 10px 12px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer; font-size: 13px;">📂 Import from JSON</button>
+          </div>
+          
+          <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 0.75rem; font-size: 12px; color: #1e40af; line-height: 1.6;">
+            <strong>💡 Tip:</strong> Export to backup your data to your computer. Import to restore or migrate data to another device.
+          </div>
         </div>
       </div>
 
@@ -1570,6 +1596,160 @@ Important: totalCost MUST be a number. If you can't find it, return 0. Yards can
       comparisons = comparisons.filter(c => c.id !== id);
       save();
       renderComps();
+    };
+
+    // EXPORT FUNCTIONS
+    function downloadFile(content, filename, type) {
+      const blob = new Blob([content], { type: type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
+
+    window.exportJobsAsCSV = function() {
+      if (jobs.length === 0) {
+        alert('No jobs to export');
+        return;
+      }
+
+      let csv = 'Address,Description,Yards,Cost,Bid Price,Profit,Margin %,Status,Created Date\n';
+      jobs.forEach(job => {
+        const createdDate = new Date(job.created).toLocaleDateString();
+        const row = [
+          `"${(job.address || '').replace(/"/g, '""')}"`,
+          `"${(job.desc || '').replace(/"/g, '""')}"`,
+          job.yards || 0,
+          job.cost || 0,
+          job.bid || 0,
+          job.profit || 0,
+          job.margin || 0,
+          job.status || 'unknown',
+          createdDate
+        ].join(',');
+        csv += row + '\n';
+      });
+
+      downloadFile(csv, `elite-masonry-jobs-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
+      alert('✓ Exported ' + jobs.length + ' job' + (jobs.length > 1 ? 's' : ''));
+    };
+
+    window.exportComparisonsAsCSV = function() {
+      if (comparisons.length === 0) {
+        alert('No comparisons to export');
+        return;
+      }
+
+      let csv = 'Address,Vendor,Price,Date,Created Date\n';
+      comparisons.forEach(comp => {
+        const createdDate = new Date(comp.created).toLocaleDateString();
+        const row = [
+          `"${(comp.address || '').replace(/"/g, '""')}"`,
+          `"${(comp.vendor || '').replace(/"/g, '""')}"`,
+          comp.price || 0,
+          comp.date || '',
+          createdDate
+        ].join(',');
+        csv += row + '\n';
+      });
+
+      downloadFile(csv, `elite-masonry-comparisons-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
+      alert('✓ Exported ' + comparisons.length + ' comparison' + (comparisons.length > 1 ? 's' : ''));
+    };
+
+    window.exportAllAsJSON = function() {
+      if (jobs.length === 0 && comparisons.length === 0) {
+        alert('No data to export');
+        return;
+      }
+
+      const exportData = {
+        exportDate: new Date().toISOString(),
+        jobs: jobs,
+        comparisons: comparisons
+      };
+
+      const json = JSON.stringify(exportData, null, 2);
+      downloadFile(json, `elite-masonry-backup-${new Date().toISOString().split('T')[0]}.json`, 'application/json;charset=utf-8;');
+      alert('✓ Exported all data to JSON backup');
+    };
+
+    window.importFromJSON = function() {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+      input.onchange = async function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+          const text = await file.text();
+          const importData = JSON.parse(text);
+
+          if (!importData.jobs || !importData.comparisons) {
+            throw new Error('Invalid backup file format');
+          }
+
+          if (confirm('This will replace all your current data. Continue?')) {
+            jobs = importData.jobs || [];
+            comparisons = importData.comparisons || [];
+            save();
+            renderDash();
+            renderJobs();
+            renderComps();
+            document.querySelector('[data-tab="dashboard"]').click();
+            alert('✓ Data imported successfully!');
+          }
+        } catch(err) {
+          console.error('Import error:', err);
+          alert('❌ Error importing file: ' + err.message);
+        }
+      };
+      input.click();
+    };
+
+    window.exportPaymentsAsCSV = function() {
+      const paymentJobs = jobs.filter(j => j.status === 'completed' || j.status === 'paid');
+      if (paymentJobs.length === 0) {
+        alert('No completed jobs to export');
+        return;
+      }
+
+      let csv = 'Address,Description,Bid Price,Status,Net 30 Due Date,Days Remaining/Overdue,Paid\n';
+      paymentJobs.forEach(job => {
+        const net30Date = job.net30Date ? new Date(job.net30Date) : null;
+        const today = new Date();
+        let daysStatus = '';
+        
+        if (net30Date) {
+          const daysLeft = Math.ceil((net30Date - today) / (1000 * 60 * 60 * 24));
+          if (daysLeft < 0) {
+            daysStatus = Math.abs(daysLeft) + ' days OVERDUE';
+          } else if (daysLeft === 0) {
+            daysStatus = 'DUE TODAY';
+          } else {
+            daysStatus = daysLeft + ' days remaining';
+          }
+        }
+
+        const row = [
+          `"${(job.address || '').replace(/"/g, '""')}"`,
+          `"${(job.desc || '').replace(/"/g, '""')}"`,
+          job.bid || 0,
+          job.status || 'unknown',
+          net30Date ? net30Date.toLocaleDateString() : 'N/A',
+          daysStatus || 'N/A',
+          job.paid ? 'Yes' : 'No'
+        ].join(',');
+        csv += row + '\n';
+      });
+
+      downloadFile(csv, `elite-masonry-payments-${new Date().toISOString().split('T')[0]}.csv`, 'text/csv;charset=utf-8;');
+      alert('✓ Exported ' + paymentJobs.length + ' payment' + (paymentJobs.length > 1 ? 's' : ''));
     };
 
     // COMPARISON IMAGE UPLOAD
