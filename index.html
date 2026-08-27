@@ -84,6 +84,7 @@
       <button class="tab-btn" data-tab="comparisons">Price Comparisons</button>
       <button class="tab-btn" data-tab="contracts">Net 30 Tracking</button>
       <button class="tab-btn" data-tab="calculator">Price Calculator</button>
+      <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
     </div>
 
     <!-- Dashboard -->
@@ -138,13 +139,35 @@
 
     <!-- Comparisons -->
     <div id="comparisons" class="content">
-      <div style="cursor: pointer;" class="upload-box" id="compUploadBox" style="margin-bottom: 2rem;">
-        <div class="upload-icon">📸</div>
-        <p style="font-weight: 500; margin-bottom: 0.25rem;">Upload vendor estimates</p>
-        <p style="font-size: 13px; color: #666;">Add photos of vendor quotes</p>
+      <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem;">
+        <h3 style="font-size: 16px; font-weight: 500; margin-bottom: 1rem;">Quick add from images</h3>
+        <div style="cursor: pointer; background: white; border: 2px dashed #e0e0e0; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 1.5rem;" id="compUploadBox">
+          <div style="font-size: 32px; margin-bottom: 0.5rem;">📸</div>
+          <p style="font-weight: 500; margin-bottom: 0.25rem;">Upload vendor quotes</p>
+          <p style="font-size: 13px; color: #666;">Screenshot or drag multiple images of vendor estimates</p>
+          <p style="font-size: 11px; color: #999; margin-top: 0.75rem;">We'll extract vendor, price, and date automatically</p>
+        </div>
+        <div id="uploadStatus"></div>
       </div>
+
+      <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; max-width: 600px;">
+        <h3 style="font-size: 16px; font-weight: 500; margin-bottom: 1rem;">Or add manually</h3>
+        <div class="form-group">
+          <label>Job address *</label>
+          <input type="text" id="compAddress" placeholder="e.g., 464 Ontario Dr">
+        </div>
+        <div class="form-group">
+          <label>Vendor name *</label>
+          <input type="text" id="compVendor" placeholder="e.g., ABC Masonry">
+        </div>
+        <div class="form-group">
+          <label>Quoted price *</label>
+          <input type="number" id="compPrice" placeholder="2851">
+        </div>
+        <button class="btn-primary" onclick="addComparison()">Add to comparison</button>
+      </div>
+
       <h2 class="section-title">Active comparisons</h2>
-      <input type="text" id="compFilter" placeholder="Filter by job address..." style="max-width: 300px; margin-bottom: 1.5rem;">
       <div id="compList"></div>
       <div id="compSummary"></div>
     </div>
@@ -172,16 +195,52 @@
         </div>
       </div>
     </div>
+
+    <!-- Settings -->
+    <div id="settings" class="content">
+      <div style="max-width: 600px;">
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem;">
+          <h2 style="font-size: 16px; font-weight: 500; margin-bottom: 1rem;">Anthropic API Key</h2>
+          <p style="font-size: 13px; color: #666; margin-bottom: 1rem;">Required for image upload feature (screenshot extraction for jobs and comparisons)</p>
+          
+          <div class="form-group">
+            <label>API Key *</label>
+            <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
+            <p style="font-size: 11px; color: #999; margin-top: 0.5rem;">🔒 Stored locally on your device only, never sent anywhere except Anthropic API</p>
+          </div>
+
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-primary" onclick="saveApiKey()" style="width: auto; flex: 1;">Save API Key</button>
+            <button onclick="clearApiKey()" style="width: auto; flex: 1;">Clear</button>
+          </div>
+
+          <div id="apiStatus" style="margin-top: 1rem; padding: 0.75rem; border-radius: 6px; display: none; font-size: 13px;">
+          </div>
+        </div>
+
+        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem;">
+          <h2 style="font-size: 16px; font-weight: 500; margin-bottom: 1rem;">How to get an API Key</h2>
+          <ol style="font-size: 13px; line-height: 1.8; color: #666;">
+            <li>Go to <a href="https://console.anthropic.com/keys" target="_blank" style="color: #2563eb;">console.anthropic.com/keys</a></li>
+            <li>Sign in (create account if needed)</li>
+            <li>Click "Create Key"</li>
+            <li>Copy the key (starts with sk-ant-)</li>
+            <li>Paste it above and click Save</li>
+            <li>Image uploads will now work!</li>
+          </ol>
+        </div>
+      </div>
+    </div>
   </div>
 
   <input type="file" id="fileInput" accept="image/*">
-  <input type="file" id="compFileInput" accept="image/*">
+  <input type="file" id="compFileInput" accept="image/*" multiple>
 
   <script>
     console.log('=== ELITE MASONRY APP STARTING ===');
     
-    // API Key - gets injected by Vercel at runtime, fallback to test
-    const ANTHROPIC_API_KEY = 'test-key';
+    // API Key from localStorage
+    let ANTHROPIC_API_KEY = '';
 
     // Data
     let jobs = [];
@@ -194,6 +253,11 @@
         if (j) jobs = JSON.parse(j);
         const c = localStorage.getItem('elite-comps');
         if (c) comparisons = JSON.parse(c);
+        const k = localStorage.getItem('elite-api-key');
+        if (k) {
+          ANTHROPIC_API_KEY = k;
+          updateApiKeyStatus();
+        }
       } catch(e) { console.error('Load error:', e); }
     }
 
@@ -296,9 +360,17 @@
       alert('Job created!');
     });
 
-    // IMAGE EXTRACTION
+    // IMAGE EXTRACTION (for jobs only)
     document.getElementById('uploadBox').addEventListener('click', () => document.getElementById('fileInput').click());
-    document.getElementById('compUploadBox').addEventListener('click', () => document.getElementById('compFileInput').click());
+
+    document.getElementById('uploadBox').addEventListener('click', () => {
+      if (!ANTHROPIC_API_KEY) {
+        alert('API key needed! Go to Settings and add your Anthropic API key.');
+        document.querySelector('[data-tab="settings"]').click();
+        return;
+      }
+      document.getElementById('fileInput').click();
+    });
 
     document.getElementById('fileInput').addEventListener('change', async function(e) {
       const file = e.target.files[0];
@@ -324,24 +396,30 @@
                   source: { type: 'base64', media_type: 'image/jpeg', data: base64 }
                 }, {
                   type: 'text',
-                  text: 'Extract: { "address": "street address", "yards": number, "totalCost": number, "description": "work" }. Return only JSON.'
+                  text: 'Extract from this bid/estimate: { "address": "street address", "yards": number, "totalCost": number, "description": "work type" }. Return ONLY valid JSON, no markdown.'
                 }]
               }]
             })
           });
           const data = await resp.json();
+          if (data.error) throw new Error(data.error.message);
           const text = data.content[0].text.replace(/```json|```/g, '').trim();
           const extracted = JSON.parse(text);
           
-          if (extracted.address) {
+          if (extracted.address && extracted.totalCost) {
             document.getElementById('jobAddress').value = extracted.address;
             document.getElementById('jobDescription').value = extracted.description || '';
             document.getElementById('jobYards').value = extracted.yards || '';
             document.getElementById('jobCost').value = extracted.totalCost || '';
             calc();
             document.querySelector('[data-tab="newjob"]').click();
+          } else {
+            alert('Could not extract job details from image. Try a clearer photo.');
           }
-        } catch(err) { alert('Error processing image'); }
+        } catch(err) { 
+          console.error('Image processing error:', err);
+          alert('Error: ' + err.message); 
+        }
       };
       reader.readAsDataURL(file);
     });
@@ -386,19 +464,50 @@
         : sorted.map(j => {
             const totalCost = j.costs.reduce((s, c) => s + c.amt, 0);
             const currentProfit = j.bid - totalCost;
+            const expanded = sessionStorage.getItem(`expand-${j.id}`) === 'true';
+            
             return `
-              <div class="job-card" onclick="toggleJob(${j.id})">
-                <div style="display: flex; justify-content: space-between;">
+              <div class="job-card" style="cursor: pointer;">
+                <div onclick="toggleJobExpand(${j.id})" style="display: flex; justify-content: space-between;">
                   <div>
                     <div class="job-address">${j.address}</div>
                     <div class="job-details">${j.yards} yards • ${j.desc}</div>
                   </div>
                   <div style="text-align: right;">
-                    <span class="status-badge ${j.status}">${j.status}</span>
+                    <span class="status-badge ${j.status}">${j.status.replace(/-/g, ' ')}</span>
                     <div style="font-weight: 500; margin-top: 0.5rem;">${fmt(j.bid)}</div>
                     <div style="font-size: 12px; color: #666;">Profit: ${fmt(currentProfit)}</div>
                   </div>
                 </div>
+                ${expanded ? `
+                  <div class="job-expanded">
+                    <div style="margin-bottom: 1.5rem;">
+                      <div style="font-size: 12px; color: #999; margin-bottom: 0.5rem;">Created ${new Date(j.created).toLocaleDateString()}</div>
+                      <div style="display: grid; gap: 0.75rem; font-size: 13px;">
+                        <div style="display: flex; justify-content: space-between;"><span>Total cost:</span><span style="font-weight: 500;">${fmt(totalCost)}</span></div>
+                        <div style="display: flex; justify-content: space-between;"><span>Bid price:</span><span style="font-weight: 500;">${fmt(j.bid)}</span></div>
+                        <div style="display: flex; justify-content: space-between;"><span>Profit:</span><span style="font-weight: 500; color: #10b981;">${fmt(currentProfit)}</span></div>
+                        <div style="display: flex; justify-content: space-between;"><span>Margin:</span><span style="font-weight: 500;">${j.margin}%</span></div>
+                        ${j.net30Date ? `<div style="display: flex; justify-content: space-between;"><span>Net 30 due:</span><span style="font-weight: 500;">${new Date(j.net30Date).toLocaleDateString()}</span></div>` : ''}
+                      </div>
+                    </div>
+
+                    <div style="border-top: 1px solid #e0e0e0; padding-top: 1rem;">
+                      <div style="font-size: 12px; font-weight: 500; margin-bottom: 0.75rem; color: #666;">Update status</div>
+                      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px;">
+                        ${j.status !== 'bid-submitted' ? `<button class="btn-small" onclick="updateJobStatus(${j.id}, 'bid-submitted')">← Back to bid</button>` : ''}
+                        ${j.status !== 'started' ? `<button class="btn-small btn-primary" onclick="updateJobStatus(${j.id}, 'started')">Start work</button>` : ''}
+                        ${j.status !== 'completed' ? `<button class="btn-small btn-success" onclick="updateJobStatus(${j.id}, 'completed')">✓ Complete</button>` : ''}
+                        ${j.status === 'completed' && j.paid ? `<button class="btn-small" style="background: #059669; color: white; border-color: #059669;">✓ Paid</button>` : ''}
+                        ${j.status === 'completed' && !j.paid ? `<button class="btn-small btn-success" onclick="markPaid(${j.id})">Mark paid</button>` : ''}
+                      </div>
+                    </div>
+
+                    <div style="border-top: 1px solid #e0e0e0; margin-top: 1rem; padding-top: 1rem;">
+                      <button class="btn-small" style="color: #dc2626; width: 100%;" onclick="deleteJob(${j.id})">Delete job</button>
+                    </div>
+                  </div>
+                ` : ''}
               </div>
             `;
           }).join('');
@@ -407,56 +516,344 @@
     }
 
     function renderComps() {
-      const html = comparisons.length === 0 
-        ? '<div class="empty-state">No comparisons yet</div>'
-        : comparisons.map(c => `
-            <div class="job-card">
-              <div style="display: flex; justify-content: space-between;">
-                <div>
-                  <div class="job-address">${c.vendor}</div>
-                  <div class="job-details">${c.desc}</div>
-                </div>
-                <div style="text-align: right; font-weight: 500;">${fmt(c.price)}</div>
+      if (comparisons.length === 0) {
+        document.getElementById('compList').innerHTML = '<div class="empty-state">No comparisons yet. Add vendor quotes above.</div>';
+        document.getElementById('compSummary').innerHTML = '';
+        return;
+      }
+
+      // Group by job address
+      const grouped = {};
+      comparisons.forEach(c => {
+        if (!grouped[c.address]) grouped[c.address] = [];
+        grouped[c.address].push(c);
+      });
+
+      let html = '';
+      let summaryHtml = '';
+
+      Object.keys(grouped).sort().forEach(addr => {
+        const estimates = grouped[addr].sort((a, b) => a.price - b.price);
+        const minPrice = Math.min(...estimates.map(e => e.price));
+        const maxPrice = Math.max(...estimates.map(e => e.price));
+        const avgPrice = Math.round(estimates.reduce((s, e) => s + e.price, 0) / estimates.length);
+        const savings = maxPrice - minPrice;
+
+        html += `
+          <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+            <div style="font-weight: 500; margin-bottom: 1rem;">${addr}</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem; margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid #e0e0e0;">
+              <div>
+                <div style="font-size: 11px; color: #666; margin-bottom: 0.25rem;">Lowest</div>
+                <div style="font-size: 14px; font-weight: 500;">${fmt(minPrice)}</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: #666; margin-bottom: 0.25rem;">Highest</div>
+                <div style="font-size: 14px; font-weight: 500;">${fmt(maxPrice)}</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: #666; margin-bottom: 0.25rem;">Average</div>
+                <div style="font-size: 14px; font-weight: 500;">${fmt(avgPrice)}</div>
+              </div>
+              <div>
+                <div style="font-size: 11px; color: #666; margin-bottom: 0.25rem;">Savings</div>
+                <div style="font-size: 14px; font-weight: 500; color: #10b981;">${fmt(savings)}</div>
               </div>
             </div>
-          `).join('');
-      
+            ${estimates.map((e, idx) => `
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 0; ${idx < estimates.length - 1 ? 'border-bottom: 1px solid #e0e0e0;' : ''}">
+                <div>
+                  <div style="font-weight: 500; font-size: 14px;">${e.vendor}</div>
+                  <div style="font-size: 12px; color: #666;">${e.price === minPrice ? '✓ Best price' : ''}</div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                  <div style="font-weight: 500; text-align: right;">${fmt(e.price)}</div>
+                  <button class="btn-small" style="padding: 4px 8px; color: #dc2626;" onclick="removeComp(${e.id})">✕</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      });
+
+      if (comparisons.length > 0) {
+        const allPrices = comparisons.map(c => c.price);
+        const avgAll = Math.round(allPrices.reduce((s, p) => s + p, 0) / allPrices.length);
+        summaryHtml = `
+          <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1rem;">
+            <div style="font-weight: 500; margin-bottom: 1rem;">Overall summary</div>
+            <div style="display: grid; gap: 0.75rem; font-size: 13px;">
+              <div style="display: flex; justify-content: space-between;"><span style="color: #666;">Total estimates</span><span style="font-weight: 500;">${comparisons.length}</span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: #666;">Average price</span><span style="font-weight: 500;">${fmt(avgAll)}</span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: #666;">Lowest found</span><span style="font-weight: 500; color: #10b981;">${fmt(Math.min(...allPrices))}</span></div>
+              <div style="display: flex; justify-content: space-between;"><span style="color: #666;">Highest found</span><span style="font-weight: 500; color: #dc2626;">${fmt(Math.max(...allPrices))}</span></div>
+            </div>
+          </div>
+        `;
+      }
+
       document.getElementById('compList').innerHTML = html;
+      document.getElementById('compSummary').innerHTML = summaryHtml;
     }
 
     function renderContracts() {
       const due = jobs.filter(j => j.status === 'completed' && j.net30Date && !j.paid);
-      const html = due.length === 0 
-        ? '<div class="empty-state">No Net 30 contracts yet</div>'
-        : due.map(j => `
-            <div class="job-card">
-              <div style="display: flex; justify-content: space-between;">
+      const overdue = due.filter(j => new Date(j.net30Date) < new Date());
+      const upcoming = due.filter(j => new Date(j.net30Date) >= new Date());
+      
+      if (due.length === 0) {
+        document.getElementById('contractList').innerHTML = '<div class="empty-state">No pending payments. Mark jobs as "completed" to track Net 30.</div>';
+        return;
+      }
+
+      let html = '';
+
+      if (overdue.length > 0) {
+        html += `<div style="background: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+          <div style="font-weight: 500; color: #dc2626; margin-bottom: 0.75rem;">⚠️ Overdue (${overdue.length})</div>
+          ${overdue.map(j => `
+            <div class="job-card" style="background: white; margin-bottom: 0.75rem; border-color: #fca5a5;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
                   <div class="job-address">${j.address}</div>
-                  <div class="job-details">Due: ${new Date(j.net30Date).toLocaleDateString()}</div>
+                  <div class="job-details">Due: ${new Date(j.net30Date).toLocaleDateString()} (${Math.ceil((new Date() - new Date(j.net30Date)) / (1000*60*60*24))} days overdue)</div>
                 </div>
                 <div style="text-align: right;">
-                  <div style="font-weight: 500; margin-bottom: 0.5rem;">${fmt(j.bid)}</div>
-                  <button class="btn-success btn-small" onclick="markPaid(${j.id})">Mark paid</button>
+                  <div style="font-weight: 500; margin-bottom: 0.5rem; font-size: 16px;">${fmt(j.bid)}</div>
+                  <button class="btn-success btn-small" onclick="markPaid(${j.id})">✓ Mark paid</button>
                 </div>
               </div>
             </div>
-          `).join('');
-      
+          `).join('')}
+        </div>`;
+      }
+
+      if (upcoming.length > 0) {
+        html += `<div>
+          <div style="font-weight: 500; margin-bottom: 1rem; color: #666;">Upcoming (${upcoming.length})</div>
+          ${upcoming.map(j => {
+            const daysLeft = Math.ceil((new Date(j.net30Date) - new Date()) / (1000*60*60*24));
+            return `
+              <div class="job-card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <div class="job-address">${j.address}</div>
+                    <div class="job-details">Due: ${new Date(j.net30Date).toLocaleDateString()} (${daysLeft} days)</div>
+                  </div>
+                  <div style="text-align: right;">
+                    <div style="font-weight: 500; margin-bottom: 0.5rem; font-size: 16px;">${fmt(j.bid)}</div>
+                    <button class="btn-success btn-small" onclick="markPaid(${j.id})">✓ Mark paid</button>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>`;
+      }
+
       document.getElementById('contractList').innerHTML = html;
     }
 
+    // SETTINGS FUNCTIONS
+    function updateApiKeyStatus() {
+      const statusDiv = document.getElementById('apiStatus');
+      if (ANTHROPIC_API_KEY) {
+        const masked = 'sk-ant-' + ANTHROPIC_API_KEY.substring(7, 15) + '...';
+        statusDiv.textContent = `✓ API Key set: ${masked}`;
+        statusDiv.style.background = '#d1fae5';
+        statusDiv.style.color = '#065f46';
+        statusDiv.style.display = 'block';
+      } else {
+        statusDiv.style.display = 'none';
+      }
+    }
+
+    window.saveApiKey = function() {
+      const key = document.getElementById('apiKeyInput').value.trim();
+      if (!key) {
+        alert('Please enter an API key');
+        return;
+      }
+      if (!key.startsWith('sk-ant-')) {
+        alert('Invalid API key format (should start with sk-ant-)');
+        return;
+      }
+      ANTHROPIC_API_KEY = key;
+      localStorage.setItem('elite-api-key', key);
+      document.getElementById('apiKeyInput').value = '';
+      updateApiKeyStatus();
+      alert('API Key saved! Image uploads now work.');
+    };
+
+    window.clearApiKey = function() {
+      if (confirm('Clear API key? Image uploads will stop working.')) {
+        ANTHROPIC_API_KEY = '';
+        localStorage.removeItem('elite-api-key');
+        document.getElementById('apiKeyInput').value = '';
+        updateApiKeyStatus();
+      }
+    };
+
     // GLOBAL FUNCTIONS
     window.toggleJob = function(id) { console.log('Toggle job:', id); };
+    
+    window.toggleJobExpand = function(id) {
+      const isExpanded = sessionStorage.getItem(`expand-${id}`) === 'true';
+      sessionStorage.setItem(`expand-${id}`, !isExpanded);
+      renderJobs();
+    };
+
+    window.updateJobStatus = function(id, newStatus) {
+      const job = jobs.find(j => j.id === id);
+      if (!job) return;
+      
+      job.status = newStatus;
+      
+      // Set net30 date when marking completed
+      if (newStatus === 'completed' && !job.net30Date) {
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 30);
+        job.net30Date = dueDate.toISOString();
+      }
+      
+      save();
+      renderJobs();
+      renderDash();
+      renderContracts();
+    };
+
+    window.deleteJob = function(id) {
+      if (confirm('Delete this job? This cannot be undone.')) {
+        jobs = jobs.filter(j => j.id !== id);
+        save();
+        renderJobs();
+        renderDash();
+      }
+    };
     window.markPaid = function(id) {
       const job = jobs.find(j => j.id === id);
-      if (job) {
+      if (!job) return;
+      if (confirm(`Mark ${job.address} as paid for ${fmt(job.bid)}?`)) {
         job.paid = true;
         job.status = 'paid';
         save();
         renderContracts();
+        renderDash();
       }
     };
+    window.addComparison = function() {
+      const address = document.getElementById('compAddress').value.trim();
+      const vendor = document.getElementById('compVendor').value.trim();
+      const price = parseFloat(document.getElementById('compPrice').value);
+      
+      if (!address || !vendor || !price) {
+        alert('Please fill in all fields');
+        return;
+      }
+      
+      comparisons.push({
+        id: Date.now(),
+        address,
+        vendor,
+        price,
+        created: new Date().toISOString()
+      });
+      
+      save();
+      document.getElementById('compAddress').value = '';
+      document.getElementById('compVendor').value = '';
+      document.getElementById('compPrice').value = '';
+      renderComps();
+    };
+    window.removeComp = function(id) {
+      comparisons = comparisons.filter(c => c.id !== id);
+      save();
+      renderComps();
+    };
+
+    // COMPARISON IMAGE UPLOAD
+    document.getElementById('compUploadBox').addEventListener('click', () => {
+      if (!ANTHROPIC_API_KEY) {
+        alert('API key needed! Go to Settings and add your Anthropic API key.');
+        document.querySelector('[data-tab="settings"]').click();
+        return;
+      }
+      document.getElementById('compFileInput').click();
+    });
+
+    document.getElementById('compFileInput').addEventListener('change', async function(e) {
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
+      
+      const statusDiv = document.getElementById('uploadStatus');
+      statusDiv.innerHTML = `<div style="color: #2563eb;">Processing ${files.length} image${files.length > 1 ? 's' : ''}...</div>`;
+      
+      let processed = 0;
+      let failed = 0;
+
+      for (const file of files) {
+        const reader = new FileReader();
+        reader.onload = async function(event) {
+          try {
+            const base64 = event.target.result.split(',')[1];
+            const resp = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': ANTHROPIC_API_KEY,
+              },
+              body: JSON.stringify({
+                model: 'claude-sonnet-4-6',
+                max_tokens: 500,
+                messages: [{
+                  role: 'user',
+                  content: [{
+                    type: 'image',
+                    source: { type: 'base64', media_type: 'image/jpeg', data: base64 }
+                  }, {
+                    type: 'text',
+                    text: 'Extract from this vendor quote/estimate: { "address": "job/project address", "vendor": "vendor/company name", "price": number, "date": "date if visible" }. Return ONLY valid JSON, no markdown.'
+                  }]
+                }]
+              })
+            });
+            const data = await resp.json();
+            if (data.error) throw new Error(data.error.message);
+            const text = data.content[0].text.replace(/```json|```/g, '').trim();
+            const extracted = JSON.parse(text);
+            
+            if (extracted.vendor && extracted.price) {
+              comparisons.push({
+                id: Date.now() + Math.random(),
+                address: extracted.address || 'Unknown address',
+                vendor: extracted.vendor,
+                price: extracted.price,
+                date: extracted.date || new Date().toISOString().split('T')[0],
+                created: new Date().toISOString()
+              });
+              processed++;
+            } else {
+              failed++;
+            }
+          } catch(err) {
+            console.error('Image processing error:', err);
+            failed++;
+          }
+
+          if (processed + failed === files.length) {
+            save();
+            renderComps();
+            if (failed > 0) {
+              statusDiv.innerHTML = `<div style="color: #059669;">✓ Added ${processed} estimate${processed > 1 ? 's' : ''} (${failed} could not be read)</div>`;
+            } else {
+              statusDiv.innerHTML = `<div style="color: #059669;">✓ Added ${processed} estimate${processed > 1 ? 's' : ''}!</div>`;
+            }
+            setTimeout(() => { statusDiv.innerHTML = ''; }, 3000);
+          }
+        };
+        reader.readAsDataURL(file);
+      }
+    });
 
     // INIT
     console.log('Loading data...');
