@@ -687,6 +687,67 @@
       };
     }
 
+    // ============ JSON EXTRACTION FROM MODEL OUTPUT ============
+    // A greedy /\{[\s\S]*\}/ grabs from the first brace to the LAST one, so a
+    // trailing note like "cost estimated {approx}" gets swallowed into the match
+    // and JSON.parse dies with "unexpected non-whitespace character after JSON".
+    // Instead, walk the string and return the first balanced object, ignoring
+    // braces that appear inside string literals.
+    function extractJsonObject(text) {
+      if (typeof text !== 'string' || text.length === 0) {
+        throw new AppError('Empty response from the AI.', 'EMPTY_RESPONSE', 400);
+      }
+
+      // Drop markdown fences if the model wrapped its answer in them.
+      let s = text.replace(/```[a-zA-Z]*\s*/g, '').replace(/```/g, '');
+
+      const start = s.indexOf('{');
+      if (start === -1) {
+        throw new AppError(
+          'The AI did not return any data. Response began: "' + s.trim().substring(0, 80) + '"',
+          'NO_JSON',
+          400
+        );
+      }
+
+      let depth = 0, inString = false, escaped = false;
+      for (let i = start; i < s.length; i++) {
+        const ch = s[i];
+
+        if (escaped) { escaped = false; continue; }
+        if (ch === '\\') { escaped = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+
+        if (ch === '{') depth++;
+        else if (ch === '}') {
+          depth--;
+          if (depth === 0) {
+            const candidate = s.substring(start, i + 1);
+            try {
+              const parsed = JSON.parse(candidate);
+              if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                throw new Error('not an object');
+              }
+              return parsed;
+            } catch (err) {
+              throw new AppError(
+                'The AI returned malformed data: ' + candidate.substring(0, 120),
+                'JSON_PARSE_ERROR',
+                400
+              );
+            }
+          }
+        }
+      }
+
+      throw new AppError(
+        'The AI response was cut off before it finished. Try a clearer photo or shorter text.',
+        'TRUNCATED_RESPONSE',
+        400
+      );
+    }
+
     // ============ RATE LIMITING & COST TRACKING ============
     const RATE_LIMIT = {
       MAX_REQUESTS_PER_HOUR: 100,
@@ -1176,23 +1237,14 @@
           const data = await callClaudeAPI(
             [{
               role: 'user',
-              content: `Extract job details from this text. Return ONLY valid JSON with: address (required), description, yards, cost (required number). If missing, omit the field:\n\n${text}`
+              content: `Extract job details. Respond with a single JSON object and nothing else - no markdown fences, no explanation, no notes before or after. Keys: address (string), description (string), yards (number), cost (number). Use null for anything you cannot find. Text:\n\n${text}`
             }],
             CONFIG.MODELS.TEXT_EXTRACTION,
             CONFIG.TOKENS.TEXT_EXTRACTION
           );
 
           const responseText = data.content[0].text || '';
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) {
-            throw new AppError('No JSON found in response', 'PARSE_ERROR', 400);
-          }
-
-          try {
-            extracted = JSON.parse(jsonMatch[0]);
-          } catch (err) {
-            throw new AppError(`Invalid JSON: ${err.message}`, 'JSON_PARSE_ERROR', 400);
-          }
+          extracted = extractJsonObject(responseText);
 
           cacheExtraction('text', 'job:' + text, extracted);
         }
@@ -1240,23 +1292,14 @@
           const data = await callClaudeAPI(
             [{
               role: 'user',
-              content: `Extract vendor quote details. Return ONLY valid JSON with: address (required), vendor (required), price (required number). If missing, omit:\n\n${text}`
+              content: `Extract the vendor quote. Respond with a single JSON object and nothing else - no markdown fences, no explanation, no notes before or after. Keys: address (string), vendor (string), price (number). Use null for anything you cannot find. Text:\n\n${text}`
             }],
             CONFIG.MODELS.TEXT_EXTRACTION,
             CONFIG.TOKENS.TEXT_EXTRACTION
           );
 
           const responseText = data.content[0].text || '';
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) {
-            throw new AppError('No JSON found in response', 'PARSE_ERROR', 400);
-          }
-
-          try {
-            extracted = JSON.parse(jsonMatch[0]);
-          } catch (err) {
-            throw new AppError(`Invalid JSON: ${err.message}`, 'JSON_PARSE_ERROR', 400);
-          }
+          extracted = extractJsonObject(responseText);
 
           cacheExtraction('text', 'comp:' + text, extracted);
         }
@@ -1341,7 +1384,7 @@
               contentBlock,
               {
                 type: 'text',
-                text: 'Extract job estimate details: address, description, estimated yards, total cost. Return ONLY this exact JSON format: {"address":"","description":"","yards":0,"cost":0}'
+                text: 'Extract the job estimate from this file. Respond with a single JSON object and nothing else - no markdown fences, no explanation, no notes before or after. Use exactly these keys: {"address":"","description":"","yards":0,"cost":0}. Use null for anything you cannot find.'
               }
             ]
           }],
@@ -1353,17 +1396,7 @@
         console.log('Job response:', responseText.substring(0, 100));
         
         // Parse JSON
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) {
-          throw new AppError('No JSON found in response', 'PARSE_ERROR', 400, { response: responseText.substring(0, 100) });
-        }
-        
-        let extracted;
-        try {
-          extracted = JSON.parse(jsonMatch[0]);
-        } catch (err) {
-          throw new AppError(`Invalid JSON: ${err.message}`, 'JSON_PARSE_ERROR', 400);
-        }
+        const extracted = extractJsonObject(responseText);
 
         // Validate required fields
         const validationErrors = validateJobInput(extracted.address, extracted.cost);
@@ -1436,7 +1469,7 @@
                 contentBlock,
                 {
                   type: 'text',
-                  text: 'Extract vendor quote details: address, vendor name, quoted price. Return ONLY this exact JSON format: {"address":"","vendor":"","price":0}'
+                  text: 'Extract the vendor quote from this file. Respond with a single JSON object and nothing else - no markdown fences, no explanation, no notes before or after. Use exactly these keys: {"address":"","vendor":"","price":0}. Use null for anything you cannot find.'
                 }
               ]
             }],
@@ -1448,17 +1481,7 @@
           console.log(`File ${i + 1} response:`, responseText.substring(0, 100));
           
           // Parse JSON
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) {
-            throw new AppError(`No JSON found in response`, 'PARSE_ERROR', 400, { response: responseText.substring(0, 100) });
-          }
-          
-          let extracted;
-          try {
-            extracted = JSON.parse(jsonMatch[0]);
-          } catch (err) {
-            throw new AppError(`Invalid JSON: ${err.message}`, 'JSON_PARSE_ERROR', 400);
-          }
+          const extracted = extractJsonObject(responseText);
 
           // Validate extracted data
           const validationErrors = validateComparisonInput(extracted.address, extracted.vendor, extracted.price);
