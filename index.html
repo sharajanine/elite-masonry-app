@@ -385,7 +385,10 @@
         TIMEOUT_MS: 30000
       },
       MODELS: {
-        TEXT_EXTRACTION: 'claude-opus-4-1',
+        // Must be an exact, current model ID — a retired or misspelled string
+        // is rejected with a 400. Verify against console.anthropic.com if
+        // extraction suddenly starts failing after a deprecation.
+        TEXT_EXTRACTION: 'claude-sonnet-4-6',
         IMAGE_EXTRACTION: 'claude-sonnet-4-6'
       },
       TOKENS: {
@@ -520,12 +523,39 @@
           if (!response.ok) {
             const errorBody = await response.text().catch(() => '');
             trackRequest(estimatedCost, 'error');
-            
+
+            // Anthropic returns {"error":{"type":..,"message":".."}} describing
+            // exactly what was wrong. Showing only the status code hides the one
+            // piece of information needed to fix the request.
+            let apiMessage = '';
+            try {
+              const parsed = JSON.parse(errorBody);
+              apiMessage = (parsed && parsed.error && parsed.error.message) || '';
+            } catch (e) {
+              apiMessage = errorBody.substring(0, 200);
+            }
+
             if (response.status === 401) {
               throw new AppError(
-                'API key invalid. Check Settings.',
+                'API key rejected. Re-paste your key in Settings.' + (apiMessage ? ' (' + apiMessage + ')' : ''),
                 'AUTH_ERROR',
                 401
+              );
+            }
+            if (response.status === 400) {
+              throw new AppError(
+                'The request was rejected as invalid' + (apiMessage ? ': ' + apiMessage : '.') +
+                ' If this mentions the model, the model ID may have been retired — check Settings.',
+                'BAD_REQUEST',
+                400,
+                { body: errorBody.substring(0, 300) }
+              );
+            }
+            if (response.status === 413) {
+              throw new AppError(
+                'That file is too large for the API. Try a smaller screenshot or crop it.',
+                'FILE_TOO_LARGE',
+                413
               );
             }
             if (response.status === 429) {
@@ -535,19 +565,19 @@
                 429
               );
             }
-            if (response.status === 500) {
+            if (response.status >= 500) {
               throw new AppError(
-                'Claude API error. Try again in 1 min.',
+                'Claude API server error. Try again in 1 min.',
                 'API_SERVER_ERROR',
-                500
+                response.status
               );
             }
             
             throw new AppError(
-              `API error ${response.status}: ${response.statusText}`,
+              `API error ${response.status}` + (apiMessage ? ': ' + apiMessage : ''),
               'API_ERROR',
               response.status,
-              { body: errorBody.substring(0, 200) }
+              { body: errorBody.substring(0, 300) }
             );
           }
 
@@ -613,6 +643,49 @@
     let compRecognition = null;
     let jobVoiceTranscript = '';
     let compVoiceTranscript = '';
+
+    // ============ FILE -> API CONTENT BLOCK ============
+    // Screenshots are usually PNG, phone photos JPEG, and PDFs are not images at
+    // all — the API needs a "document" block for those. Guessing the type is what
+    // produces a 400, so read it from the file and reject anything unsupported
+    // before spending a request on it.
+    const SUPPORTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+    function buildFileContentBlock(file, base64) {
+      let type = (file.type || '').toLowerCase();
+
+      // Some browsers report an empty type; fall back to the file extension.
+      if (!type) {
+        const ext = (file.name || '').split('.').pop().toLowerCase();
+        const byExt = {
+          jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+          gif: 'image/gif', webp: 'image/webp', pdf: 'application/pdf'
+        };
+        type = byExt[ext] || '';
+      }
+
+      if (type === 'application/pdf') {
+        return {
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: base64 }
+        };
+      }
+
+      if (type === 'image/jpg') type = 'image/jpeg';
+
+      if (!SUPPORTED_IMAGE_TYPES.includes(type)) {
+        throw new AppError(
+          `Unsupported file type "${type || 'unknown'}". Use a JPG, PNG, GIF, WEBP, or PDF.`,
+          'UNSUPPORTED_FILE_TYPE',
+          400
+        );
+      }
+
+      return {
+        type: 'image',
+        source: { type: 'base64', media_type: type, data: base64 }
+      };
+    }
 
     // ============ RATE LIMITING & COST TRACKING ============
     const RATE_LIMIT = {
@@ -1256,19 +1329,16 @@
           reader.readAsDataURL(file);
         });
 
-        const mediaType = file.type === 'application/pdf' ? 'application/pdf' : 'image/jpeg';
+        const contentBlock = buildFileContentBlock(file, base64);
         
-        console.log('Sending job image to API:', file.name);
+        console.log('Sending job file to API:', file.name, '->', contentBlock.source.media_type);
         
         // Call Claude API with new wrapper
         const data = await callClaudeAPI(
           [{
             role: 'user',
             content: [
-              {
-                type: 'image',
-                source: { type: 'base64', media_type: mediaType, data: base64 }
-              },
+              contentBlock,
               {
                 type: 'text',
                 text: 'Extract job estimate details: address, description, estimated yards, total cost. Return ONLY this exact JSON format: {"address":"","description":"","yards":0,"cost":0}'
@@ -1355,17 +1425,15 @@
             reader.readAsDataURL(file);
           });
 
-          const mediaType = file.type === 'application/pdf' ? 'application/pdf' : 'image/jpeg';
+          const contentBlock = buildFileContentBlock(file, base64);
+          console.log(`File ${i + 1} type:`, contentBlock.source.media_type);
           
           // Call Claude API with new wrapper
           const data = await callClaudeAPI(
             [{
               role: 'user',
               content: [
-                {
-                  type: 'image',
-                  source: { type: 'base64', media_type: mediaType, data: base64 }
-                },
+                contentBlock,
                 {
                   type: 'text',
                   text: 'Extract vendor quote details: address, vendor name, quoted price. Return ONLY this exact JSON format: {"address":"","vendor":"","price":0}'
