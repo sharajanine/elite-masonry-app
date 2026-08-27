@@ -748,6 +748,92 @@
       );
     }
 
+    // Returns an ARRAY of records. Model output may be a bare array, an object
+    // wrapping an array ({"jobs":[...]}), or a single object. One screenshot can
+    // legitimately contain many jobs, so the single-object case is just a list
+    // of one rather than a special path.
+    function extractJsonPayload(text, listKey) {
+      if (typeof text !== 'string' || text.trim().length === 0) {
+        throw new AppError('Empty response from the AI.', 'EMPTY_RESPONSE', 400);
+      }
+
+      let s = text.replace(/```[a-zA-Z]*\s*/g, '').replace(/```/g, '').trim();
+
+      // Try a whole-string parse first; that handles clean arrays and objects.
+      let parsed = null;
+      try { parsed = JSON.parse(s); } catch (e) { parsed = null; }
+
+      // Otherwise pull the first balanced array or object out of surrounding prose.
+      if (parsed === null) {
+        const firstArray = s.indexOf('[');
+        const firstObject = s.indexOf('{');
+        const start = (firstArray !== -1 && (firstObject === -1 || firstArray < firstObject))
+          ? firstArray : firstObject;
+
+        if (start === -1) {
+          throw new AppError(
+            'The AI did not return any data. Response began: "' + s.substring(0, 80) + '"',
+            'NO_JSON',
+            400
+          );
+        }
+
+        const open = s[start];
+        const close = open === '[' ? ']' : '}';
+        let depth = 0, inString = false, escaped = false, end = -1;
+
+        for (let i = start; i < s.length; i++) {
+          const ch = s[i];
+          if (escaped) { escaped = false; continue; }
+          if (ch === '\\') { escaped = true; continue; }
+          if (ch === '"') { inString = !inString; continue; }
+          if (inString) continue;
+          if (ch === open) depth++;
+          else if (ch === close) { depth--; if (depth === 0) { end = i; break; } }
+        }
+
+        if (end === -1) {
+          throw new AppError(
+            'The AI response was cut off before it finished. Try a clearer photo, or crop it to fewer jobs.',
+            'TRUNCATED_RESPONSE',
+            400
+          );
+        }
+
+        try {
+          parsed = JSON.parse(s.substring(start, end + 1));
+        } catch (err) {
+          throw new AppError(
+            'The AI returned malformed data: ' + s.substring(start, start + 120),
+            'JSON_PARSE_ERROR',
+            400
+          );
+        }
+      }
+
+      let list;
+      if (Array.isArray(parsed)) {
+        list = parsed;
+      } else if (parsed && typeof parsed === 'object') {
+        // Prefer the named key, else any array-valued property, else treat the
+        // object itself as a single record.
+        if (listKey && Array.isArray(parsed[listKey])) {
+          list = parsed[listKey];
+        } else {
+          const arrayProp = Object.keys(parsed).find(k => Array.isArray(parsed[k]));
+          list = arrayProp ? parsed[arrayProp] : [parsed];
+        }
+      } else {
+        throw new AppError('The AI returned an unexpected format.', 'BAD_PAYLOAD', 400);
+      }
+
+      const records = list.filter(r => r && typeof r === 'object' && !Array.isArray(r));
+      if (records.length === 0) {
+        throw new AppError('The AI did not find any usable records.', 'NO_RECORDS', 400);
+      }
+      return records;
+    }
+
     // ============ RATE LIMITING & COST TRACKING ============
     const RATE_LIMIT = {
       MAX_REQUESTS_PER_HOUR: 100,
@@ -1117,6 +1203,56 @@
     };
 
     // ============ TAB SYSTEM ============
+    function switchToTab(tabId) {
+      const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+      const panel = document.getElementById(tabId);
+      if (!btn || !panel) return;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      panel.classList.add('active');
+    }
+
+    // Add every extracted quote, skipping incomplete ones. Returns how many stuck.
+    function addExtractedComparisons(records) {
+      let n = 0;
+      records.forEach(r => {
+        const address = String(r.address == null ? '' : r.address).trim();
+        const vendor = String(r.vendor == null ? '' : r.vendor).trim();
+        const price = parseFloat(r.price);
+        if (validateComparisonInput(address, vendor, price).length > 0) return;
+        comparisons.push({
+          id: 'comp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
+          address: sanitizeHtml(address),
+          vendor: sanitizeHtml(vendor),
+          price: price,
+          created: new Date().toISOString().split('T')[0]
+        });
+        n++;
+      });
+      return n;
+    }
+
+    // Push extracted records into the batch queue instead of a single form.
+    function queueExtractedJobs(records) {
+      let added = 0;
+      records.forEach(r => {
+        const address = String(r.address == null ? '' : r.address).trim();
+        const cost = parseFloat(r.cost);
+        if (!address || !isFinite(cost) || cost <= 0) return;
+        batchDraft.push({
+          key: 'd-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+          address: sanitizeHtml(address),
+          description: sanitizeHtml(String(r.description == null ? '' : r.description)),
+          yards: isFinite(parseFloat(r.yards)) ? parseFloat(r.yards) : '',
+          cost: cost,
+          margin: 40
+        });
+        added++;
+      });
+      return added;
+    }
+
     function setupTabs() {
       document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', function(e) {
@@ -1233,18 +1369,52 @@
       try {
         let extracted = getCachedExtraction('text', 'job:' + text);
 
+        // A cached multi-job result replays into the batch queue.
+        if (Array.isArray(extracted)) {
+          const added = queueExtractedJobs(extracted);
+          renderBatch();
+          switchToTab('batch');
+          showBatchDraftMessage(`✅ Re-imported ${added} job(s) from cache. Review, then Commit.`, 'success');
+          btn.disabled = false;
+          return;
+        }
+
         if (!extracted) {
           const data = await callClaudeAPI(
             [{
               role: 'user',
-              content: `Extract job details. Respond with a single JSON object and nothing else - no markdown fences, no explanation, no notes before or after. Keys: address (string), description (string), yards (number), cost (number). Use null for anything you cannot find. Text:\n\n${text}`
+              content: `Extract EVERY job in this text - it often lists several. Respond with a single JSON object and nothing else - no markdown fences, no explanation, no notes before or after. Format: {"jobs":[{"address":"","description":"","yards":0,"cost":0}]}. One array entry per job. Strip currency symbols and commas from cost so it is a plain number. Yards may be a decimal such as 2.5. Use null for anything you cannot find. Text:\n\n${text}`
             }],
             CONFIG.MODELS.TEXT_EXTRACTION,
             CONFIG.TOKENS.TEXT_EXTRACTION
           );
 
           const responseText = data.content[0].text || '';
-          extracted = extractJsonObject(responseText);
+          const records = extractJsonPayload(responseText, 'jobs');
+
+          if (records.length > 1) {
+            const added = queueExtractedJobs(records);
+            if (added === 0) {
+              throw new AppError(
+                `Found ${records.length} entries but none had both an address and a cost.`,
+                'VALIDATION_ERROR', 400
+              );
+            }
+            cacheExtraction('text', 'job:' + text, records);
+            document.getElementById('jobTextInput').value = '';
+            renderBatch();
+            switchToTab('batch');
+            showBatchDraftMessage(
+              `✅ Imported ${added} job(s) from pasted text.` +
+              (added < records.length ? ` ${records.length - added} skipped for missing address or cost.` : '') +
+              ' Review the margins below, then Commit.',
+              'success'
+            );
+            btn.disabled = false;
+            return;
+          }
+
+          extracted = records[0];
 
           cacheExtraction('text', 'job:' + text, extracted);
         }
@@ -1292,14 +1462,29 @@
           const data = await callClaudeAPI(
             [{
               role: 'user',
-              content: `Extract the vendor quote. Respond with a single JSON object and nothing else - no markdown fences, no explanation, no notes before or after. Keys: address (string), vendor (string), price (number). Use null for anything you cannot find. Text:\n\n${text}`
+              content: `Extract EVERY vendor quote in this text - it often lists several. Respond with a single JSON object and nothing else - no markdown fences, no explanation, no notes before or after. Format: {"quotes":[{"address":"","vendor":"","price":0}]}. One array entry per quote. Strip currency symbols and commas from price so it is a plain number. Use null for anything you cannot find. Text:\n\n${text}`
             }],
             CONFIG.MODELS.TEXT_EXTRACTION,
             CONFIG.TOKENS.TEXT_EXTRACTION
           );
 
           const responseText = data.content[0].text || '';
-          extracted = extractJsonObject(responseText);
+          const records = extractJsonPayload(responseText, 'quotes');
+
+          if (records.length > 1) {
+            const n = addExtractedComparisons(records);
+            if (n === 0) {
+              throw new AppError('No entries had an address, vendor, and price.', 'VALIDATION_ERROR', 400);
+            }
+            save();
+            renderComps();
+            document.getElementById('compTextInput').value = '';
+            showCompMessage(`✅ Added ${n} quote(s).` + (n < records.length ? ` ${records.length - n} skipped.` : ''), 'success');
+            btn.disabled = false;
+            return;
+          }
+
+          extracted = records[0];
 
           cacheExtraction('text', 'comp:' + text, extracted);
         }
@@ -1384,7 +1569,7 @@
               contentBlock,
               {
                 type: 'text',
-                text: 'Extract the job estimate from this file. Respond with a single JSON object and nothing else - no markdown fences, no explanation, no notes before or after. Use exactly these keys: {"address":"","description":"","yards":0,"cost":0}. Use null for anything you cannot find.'
+                text: 'Extract EVERY job estimate in this file. A single image often lists several jobs - return all of them, not just the first. Respond with a single JSON object and nothing else - no markdown fences, no explanation, no notes before or after. Format: {"jobs":[{"address":"","description":"","yards":0,"cost":0}]}. One array entry per job. Strip currency symbols and commas from cost so it is a plain number. Yards may be a decimal such as 2.5. Use null for anything you cannot find.'
               }
             ]
           }],
@@ -1396,9 +1581,34 @@
         console.log('Job response:', responseText.substring(0, 100));
         
         // Parse JSON
-        const extracted = extractJsonObject(responseText);
+        const records = extractJsonPayload(responseText, 'jobs');
+        console.log(`Extracted ${records.length} job(s) from ${file.name}`);
 
-        // Validate required fields
+        // Several jobs on one screenshot is the normal case for a text thread,
+        // so send them to the batch queue where they can be reviewed together.
+        if (records.length > 1) {
+          const added = queueExtractedJobs(records);
+          if (added === 0) {
+            throw new AppError(
+              `Found ${records.length} entries but none had both an address and a cost.`,
+              'VALIDATION_ERROR',
+              400
+            );
+          }
+          renderBatch();
+          switchToTab('batch');
+          showBatchDraftMessage(
+            `✅ Imported ${added} job(s) from ${sanitizeHtml(file.name)}.` +
+            (added < records.length ? ` ${records.length - added} skipped for missing address or cost.` : '') +
+            ' Review the margins below, then Commit.',
+            'success'
+          );
+          showJobMessage(`✅ ${added} jobs sent to the Batch tab`, 'success');
+          return;
+        }
+
+        // Single job: fill the form as before.
+        const extracted = records[0];
         const validationErrors = validateJobInput(extracted.address, extracted.cost);
         if (validationErrors.length > 0) {
           throw new AppError(
@@ -1409,7 +1619,6 @@
           );
         }
 
-        // Fill form fields with sanitized data
         document.getElementById('jobAddress').value = sanitizeHtml(extracted.address);
         document.getElementById('jobDescription').value = sanitizeHtml(extracted.description || '');
         document.getElementById('jobYards').value = extracted.yards || '';
@@ -1417,7 +1626,6 @@
         updatePriceBreakdown();
         
         showJobMessage('✅ Image processed and fields filled', 'success');
-        console.log('Job fields populated successfully');
       } catch (err) {
         const errMsg = err instanceof AppError ? err.message : err.message;
         console.error('Job image upload error:', errMsg);
@@ -1469,7 +1677,7 @@
                 contentBlock,
                 {
                   type: 'text',
-                  text: 'Extract the vendor quote from this file. Respond with a single JSON object and nothing else - no markdown fences, no explanation, no notes before or after. Use exactly these keys: {"address":"","vendor":"","price":0}. Use null for anything you cannot find.'
+                  text: 'Extract EVERY vendor quote in this file - one image often lists several. Respond with a single JSON object and nothing else - no markdown fences, no explanation, no notes before or after. Format: {"quotes":[{"address":"","vendor":"","price":0}]}. One array entry per quote. Strip currency symbols and commas from price so it is a plain number. Use null for anything you cannot find.'
                 }
               ]
             }],
@@ -1481,29 +1689,17 @@
           console.log(`File ${i + 1} response:`, responseText.substring(0, 100));
           
           // Parse JSON
-          const extracted = extractJsonObject(responseText);
-
-          // Validate extracted data
-          const validationErrors = validateComparisonInput(extracted.address, extracted.vendor, extracted.price);
-          if (validationErrors.length > 0) {
+          const records = extractJsonPayload(responseText, 'quotes');
+          const before = added;
+          added += addExtractedComparisons(records);
+          if (added === before) {
             throw new AppError(
-              `Invalid data: ${validationErrors.join(', ')}`,
+              `Found ${records.length} entr${records.length === 1 ? 'y' : 'ies'} but none had an address, vendor, and price.`,
               'VALIDATION_ERROR',
-              400,
-              { extracted }
+              400
             );
           }
-
-          // Add to comparisons
-          comparisons.push({
-            id: 'comp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
-            address: sanitizeHtml(extracted.address),
-            vendor: sanitizeHtml(extracted.vendor),
-            price: parseFloat(extracted.price),
-            created: new Date().toISOString().split('T')[0]
-          });
-          added++;
-          console.log(`✅ Added file ${i + 1}, total added: ${added}`);
+          console.log(`✅ File ${i + 1}: added ${added - before} quote(s), total ${added}`);
         } catch (err) {
           const errMsg = err instanceof AppError ? err.message : err.message;
           console.error(`❌ File ${i + 1} error:`, errMsg);
@@ -1651,7 +1847,7 @@
       for (let i = 0; i < count; i++) {
         batchDraft.push({
           key: 'd-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
-          address: '', description: '', cost: '', margin: 40
+          address: '', description: '', cost: '', yards: '', margin: 40
         });
       }
       renderBatchDraft();
@@ -1685,11 +1881,13 @@
         const ready = r.address.trim().length > 0 && cost > 0 && bid > cost;
         if (ready) { totalCost += cost; totalBid += bid; validCount++; }
         return `
-          <div style="display: grid; grid-template-columns: 2fr 1fr 90px 1fr 32px; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+          <div style="display: grid; grid-template-columns: 2fr 1fr 70px 80px 1fr 32px; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
             <input type="text" placeholder="Address" value="${sanitizeHtml(r.address)}"
                    oninput="updateBatchDraftLive('${r.key}','address',this.value)" style="padding: 6px 8px; font-size: 12px;">
             <input type="number" placeholder="Cost" value="${r.cost}"
                    oninput="updateBatchDraft('${r.key}','cost',this.value)" style="padding: 6px 8px; font-size: 12px;">
+            <input type="number" step="0.5" min="0" placeholder="yds" value="${r.yards}"
+                   oninput="updateBatchDraftLive('${r.key}','yards',this.value)" style="padding: 6px 8px; font-size: 12px;" title="Yards">
             <input type="number" min="0" max="90" value="${r.margin}"
                    oninput="updateBatchDraft('${r.key}','margin',this.value)" style="padding: 6px 8px; font-size: 12px;" title="Margin %">
             <div style="font-size: 12px; color: ${ready ? '#2e7d32' : '#999'};">
@@ -1701,8 +1899,8 @@
       }).join('');
 
       host.innerHTML = `
-        <div style="display: grid; grid-template-columns: 2fr 1fr 90px 1fr 32px; gap: 0.5rem; font-size: 11px; color: #666; margin-bottom: 0.4rem; font-weight: 600;">
-          <div>Address</div><div>Cost</div><div>Margin %</div><div>Result</div><div></div>
+        <div style="display: grid; grid-template-columns: 2fr 1fr 70px 80px 1fr 32px; gap: 0.5rem; font-size: 11px; color: #666; margin-bottom: 0.4rem; font-weight: 600;">
+          <div>Address</div><div>Cost</div><div>Yards</div><div>Margin %</div><div>Result</div><div></div>
         </div>
         ${rows}
         <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0; font-size: 12px;">
@@ -1738,7 +1936,7 @@
           id: 'job-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
           address: sanitizeHtml(address),
           description: sanitizeHtml(String(r.description || '')),
-          yards: 0,
+          yards: isFinite(parseFloat(r.yards)) ? parseFloat(r.yards) : 0,
           cost, bidAmount: bid, margin,
           status: STATUS.BID_SUBMITTED,
           created: new Date().toISOString().split('T')[0]
