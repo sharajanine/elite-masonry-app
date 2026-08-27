@@ -108,16 +108,25 @@
 
     <!-- New Job -->
     <div id="newjob" class="content">
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+      <!-- PRIMARY: Image Upload -->
+      <div style="margin-top: 2rem; cursor: pointer;" class="upload-box" id="uploadBox">
+        <div class="upload-icon">📸</div>
+        <p style="font-weight: 500; margin-bottom: 0.25rem;">Quick add from image</p>
+        <p style="font-size: 13px; color: #666;">Upload a screenshot of a bid and we'll extract details</p>
+        <p style="font-size: 11px; color: #999; margin-top: 0.75rem;">💡 <a href="#" onclick="document.querySelector('[data-tab=\"tips\"]').click(); return false;" style="color: #2563eb;">Tips for better extracts</a></p>
+      </div>
+
+      <!-- SECONDARY: Text & Voice -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; margin-top: 2rem;">
         <!-- Left: Paste text -->
         <div>
           <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">📝 Paste raw text</h3>
           <p style="font-size: 12px; color: #666; margin-bottom: 0.75rem;">Email, message, or invoice text:</p>
-          <textarea id="jobTextInput" placeholder="Paste: 'ABC Masonry quoted $2500 for driveway at 464 Ontario Dr'" style="width: 100%; height: 120px; margin-bottom: 0.75rem; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: monospace;"></textarea>
+          <textarea id="jobTextInput" placeholder="Paste: 'Bid for driveway at 464 Ontario Dr, $2500 total'" style="width: 100%; height: 120px; margin-bottom: 0.75rem; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: monospace;"></textarea>
           <button class="btn-primary" onclick="extractJobFromText()" style="width: 100%; margin-bottom: 0.5rem;">Extract from text</button>
         </div>
 
-        <!-- Middle: Voice capture -->
+        <!-- Right: Voice capture -->
         <div>
           <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">🎤 Or say it out loud</h3>
           <p style="font-size: 12px; color: #666; margin-bottom: 0.75rem;">Speak the job details:</p>
@@ -132,47 +141,47 @@
             <button class="btn-primary" onclick="extractJobFromVoice()" style="width: 100%;">Extract from voice</button>
           </div>
         </div>
+      </div>
 
-        <!-- Right: Manual entry form -->
-        <div>
-          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">✋ Or enter manually</h3>
-          <form id="newJobForm" style="max-width: none;">
-            <div class="form-group" style="margin-bottom: 0.75rem;">
-              <label style="font-size: 12px;">Address</label>
-              <input type="text" id="jobAddress" placeholder="464 Ontario Dr" style="font-size: 12px;">
+      <!-- TERTIARY: Manual entry -->
+      <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem;">
+        <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">✋ Or enter manually</h3>
+        <form id="newJobForm" style="max-width: none;">
+          <div class="form-group" style="margin-bottom: 0.75rem;">
+            <label style="font-size: 12px;">Address</label>
+            <input type="text" id="jobAddress" placeholder="464 Ontario Dr" style="font-size: 12px;">
+          </div>
+          <div class="form-group" style="margin-bottom: 0.75rem;">
+            <label style="font-size: 12px;">Description</label>
+            <input type="text" id="jobDescription" placeholder="Driveway replacement" style="font-size: 12px;">
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label style="font-size: 12px;">Yards</label>
+              <input type="number" id="jobYards" placeholder="3" style="font-size: 12px;">
             </div>
-            <div class="form-group" style="margin-bottom: 0.75rem;">
-              <label style="font-size: 12px;">Description</label>
-              <input type="text" id="jobDescription" placeholder="Driveway replacement" style="font-size: 12px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label style="font-size: 12px;">Cost *</label>
+              <input type="number" id="jobCost" placeholder="2851" style="font-size: 12px;">
             </div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem;">
-              <div class="form-group" style="margin-bottom: 0;">
-                <label style="font-size: 12px;">Yards</label>
-                <input type="number" id="jobYards" placeholder="3" style="font-size: 12px;">
-              </div>
-              <div class="form-group" style="margin-bottom: 0;">
-                <label style="font-size: 12px;">Cost *</label>
-                <input type="number" id="jobCost" placeholder="2851" style="font-size: 12px;">
-              </div>
+          </div>
+          <div class="form-group" style="margin-bottom: 0.75rem;">
+            <label style="font-size: 12px;">Margin: <span id="marginVal">40</span>%</label>
+            <input type="range" id="jobMargin" min="10" max="80" value="40" style="width: 100%;">
+          </div>
+          <div style="background: #f5f5f5; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 12px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+              <span>Cost:</span><span id="showCost">$0</span>
             </div>
-            <div class="form-group" style="margin-bottom: 0.75rem;">
-              <label style="font-size: 12px;">Margin: <span id="marginVal">40</span>%</label>
-              <input type="range" id="jobMargin" min="10" max="80" value="40" style="width: 100%;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+              <span>Profit:</span><span id="showProfit">$0</span>
             </div>
-            <div style="background: #f5f5f5; padding: 0.5rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 12px;">
-              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                <span>Cost:</span><span id="showCost">$0</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
-                <span>Profit:</span><span id="showProfit">$0</span>
-              </div>
-              <div style="display: flex; justify-content: space-between; font-weight: 500;">
-                <span>Bid:</span><span id="showBid">$0</span>
-              </div>
+            <div style="display: flex; justify-content: space-between; font-weight: 500;">
+              <span>Bid:</span><span id="showBid">$0</span>
             </div>
-            <button type="submit" class="btn-primary" style="width: 100%; font-size: 12px;">Create job</button>
-          </form>
-        </div>
+          </div>
+          <button type="submit" class="btn-primary" style="width: 100%; font-size: 12px;">Create job</button>
+        </form>
       </div>
     </div>
 
@@ -191,6 +200,20 @@
         <h2 style="font-size: 18px; font-weight: 500;">Price Comparisons</h2>
         <button onclick="exportComparisonsAsCSV()" style="padding: 8px 12px; font-size: 12px; background: white; border: 1px solid #e0e0e0; border-radius: 6px; cursor: pointer;">📥 Export as CSV</button>
       </div>
+
+      <!-- PRIMARY: Image Upload -->
+      <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem;">
+        <h3 style="font-size: 16px; font-weight: 500; margin-bottom: 1rem;">Quick add from images</h3>
+        <div style="cursor: pointer; background: white; border: 2px dashed #e0e0e0; border-radius: 8px; padding: 2rem; text-align: center; margin-bottom: 1.5rem;" id="compUploadBox">
+          <div style="font-size: 32px; margin-bottom: 0.5rem;">📸</div>
+          <p style="font-weight: 500; margin-bottom: 0.25rem;">Upload vendor quotes</p>
+          <p style="font-size: 13px; color: #666;">Screenshot or drag multiple images of vendor estimates</p>
+          <p style="font-size: 11px; color: #999; margin-top: 0.75rem;">💡 <a href="#" onclick="document.querySelector('[data-tab=\"tips\"]').click(); return false;" style="color: #2563eb;">See tips for better extracts</a></p>
+        </div>
+        <div id="uploadStatus"></div>
+      </div>
+
+      <!-- SECONDARY: Text & Voice -->
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
         <!-- Left: Paste text -->
         <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem;">
