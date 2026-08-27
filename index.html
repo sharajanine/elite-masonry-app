@@ -42,6 +42,7 @@
     <div class="tabs" id="tabsContainer">
       <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
       <button class="tab-btn" data-tab="newjob">New Job</button>
+      <button class="tab-btn" data-tab="batch">📦 Batch</button>
       <button class="tab-btn" data-tab="jobs">All Jobs</button>
       <button class="tab-btn" data-tab="comparisons">Price Comparisons</button>
       <button class="tab-btn" data-tab="contracts">Net 30 Tracking</button>
@@ -127,6 +128,53 @@
           <button type="submit" class="btn-primary" style="width: 100%;">Create Job</button>
         </form>
       </div>
+    </div>
+
+    <!-- BATCH -->
+    <div id="batch" class="content">
+      <h2>📦 Batch Entry &amp; Margin Review</h2>
+
+      <div class="section-title">1. Queue up multiple jobs</div>
+      <p style="font-size: 12px; color: #666; margin-bottom: 0.75rem;">
+        Add addresses and costs for several jobs, then commit them all at once. Nothing is saved until you click Commit.
+      </p>
+      <div id="batchDraftRows"></div>
+      <div style="margin-top: 0.75rem;">
+        <button class="btn-primary" onclick="addBatchRow()" style="margin-right: 0.5rem;">➕ Add Row</button>
+        <button class="btn-primary" onclick="addBatchRow(5)" style="margin-right: 0.5rem;">➕ Add 5</button>
+        <button class="btn-primary" onclick="commitBatchJobs()" style="background: #2e7d32;">✅ Commit to Jobs</button>
+      </div>
+      <div id="batchDraftMessage" style="margin-top: 0.75rem;"></div>
+
+      <div class="section-title">2. Review margins &amp; total profit</div>
+      <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem;">
+        <label style="font-size: 12px; color: #666;">Show:</label>
+        <select id="batchStatusFilter" onchange="renderBatch()" style="padding: 6px 8px; font-size: 12px;">
+          <option value="all">All jobs</option>
+          <option value="bid-submitted">Bid Submitted</option>
+          <option value="started">Started</option>
+          <option value="completed">Completed</option>
+          <option value="paid">Paid</option>
+        </select>
+        <button onclick="batchSelectAll(true)" style="font-size: 12px; padding: 6px 10px; cursor: pointer;">Select all</button>
+        <button onclick="batchSelectAll(false)" style="font-size: 12px; padding: 6px 10px; cursor: pointer;">Clear</button>
+      </div>
+
+      <div style="background: #f0f7ff; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+        <div style="font-weight: 600; margin-bottom: 0.5rem; font-size: 13px;">Apply margin to selected jobs</div>
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+          <input type="range" id="batchGlobalMargin" min="0" max="90" value="40"
+                 oninput="onGlobalMarginInput()" style="flex: 1; min-width: 180px;">
+          <span style="font-weight: bold; min-width: 48px;"><span id="batchGlobalMarginVal">40</span>%</span>
+          <button class="btn-primary" onclick="applyGlobalMargin()">Apply to Selected</button>
+        </div>
+      </div>
+
+      <div id="batchTotals"></div>
+      <div id="batchTable"></div>
+
+      <div id="batchSaveBar" style="margin-top: 1rem;"></div>
+      <div id="batchMessage" style="margin-top: 0.75rem;"></div>
     </div>
 
     <!-- ALL JOBS -->
@@ -229,20 +277,67 @@
     <div id="settings" class="content">
       <h2>Settings</h2>
       <div style="max-width: 600px;">
+        
+        <div class="section-title">🔐 API Key (Required for AI)</div>
         <div class="form-group">
           <label>Anthropic API Key</label>
-          <input type="password" id="apiKeyInput" placeholder="sk-ant-...">
-          <p style="font-size: 11px; color: #666; margin-top: 0.5rem;">🔒 Stored securely on your device only</p>
+          <input type="password" id="apiKeyInput" placeholder="sk-ant-..." style="font-family: monospace;">
+          <p style="font-size: 11px; color: #666; margin-top: 0.5rem;">
+            ⚠️ Never share this key. Stored encrypted on your device only.
+          </p>
+          <p style="font-size: 11px; color: #666; margin-top: 0.25rem;">
+            Get free key: <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>
+          </p>
         </div>
         <button class="btn-primary" onclick="saveApiKey()">Save API Key</button>
         <div id="apiKeyStatus" style="margin-top: 1rem; font-size: 12px; color: #999;">Not configured</div>
         
-        <div class="section-title">Backup & Restore</div>
+        <div class="section-title">💰 API Usage & Costs</div>
+        <div style="background: #f5f5f5; border-radius: 6px; padding: 1rem; font-size: 12px; margin-bottom: 1rem;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div>
+              <div style="color: #666;">Today's Calls</div>
+              <div style="font-size: 18px; font-weight: bold;" id="todayCallsDisplay">0</div>
+            </div>
+            <div>
+              <div style="color: #666;">Est. Cost Today</div>
+              <div style="font-size: 18px; font-weight: bold; color: #d32f2f;" id="todayCostDisplay">$0.00</div>
+            </div>
+            <div>
+              <div style="color: #666;">Rate Limit</div>
+              <div style="font-size: 12px;" id="rateLimitDisplay">500/day</div>
+            </div>
+            <div>
+              <div style="color: #666;">Queue Size</div>
+              <div style="font-size: 18px; font-weight: bold;" id="queueSizeDisplay">0</div>
+            </div>
+          </div>
+          <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #ddd;">
+            <p style="color: #666; margin: 0; font-size: 11px;">
+              💡 Tip: Each call costs ~$0.003. Free tier: ~300 calls/month.
+              <br/>Set API key to enable features. Check your Anthropic dashboard for actual costs.
+            </p>
+          </div>
+        </div>
+        <a class="btn-primary" href="https://console.anthropic.com/settings/billing" target="_blank" rel="noopener noreferrer" style="display: inline-block; text-decoration: none;">View Billing →</a>
+        
+        <div class="section-title">💾 Automatic Backups</div>
+        <p style="font-size: 12px; color: #666; margin-bottom: 1rem;">
+          Auto-backup every hour. Last 5 backups saved locally.
+        </p>
+        <button class="btn-primary" onclick="showBackups()" style="margin-right: 0.5rem;">📋 View Backups</button>
+        <div id="backupsList" style="margin-top: 1rem; font-size: 11px; display: none;"></div>
+        
+        <div class="section-title">📤 Export / Import</div>
         <button class="btn-primary" onclick="exportAllAsJSON()" style="margin-right: 0.5rem;">💾 Export JSON</button>
         <button class="btn-primary" onclick="importFromJSON()">📂 Import JSON</button>
+        <p style="font-size: 11px; color: #666; margin-top: 0.5rem;">
+          Export contains all jobs and comparisons. Import overwrites current data.
+        </p>
         
-        <div class="section-title">Data Management</div>
-        <button class="btn-primary" onclick="clearAllData()" style="background: #d32f2f;">🗑️ Clear All Data</button>
+        <div class="section-title">🗑️ Data Management</div>
+        <button class="btn-primary" onclick="clearAllData()" style="background: #d32f2f;">⚠️ Clear All Data</button>
+        <p style="font-size: 11px; color: #999; margin-top: 0.5rem;">This cannot be undone. A backup will be created first.</p>
       </div>
     </div>
 
@@ -282,6 +377,211 @@
   <input type="file" id="compFileInput" accept=".jpg,.jpeg,.png,.pdf" multiple style="display: none;">
 
   <script>
+    // ============ CONSTANTS & CONFIG ============
+    const CONFIG = {
+      API: {
+        ENDPOINT: 'https://api.anthropic.com/v1/messages',
+        VERSION: '2023-06-01',
+        TIMEOUT_MS: 30000
+      },
+      MODELS: {
+        TEXT_EXTRACTION: 'claude-opus-4-1',
+        IMAGE_EXTRACTION: 'claude-sonnet-4-6'
+      },
+      TOKENS: {
+        TEXT_EXTRACTION: 500,
+        IMAGE_EXTRACTION: 500
+      }
+    };
+
+    const STORAGE_KEYS = {
+      JOBS: 'elite-jobs',
+      COMPS: 'elite-comps',
+      API_KEY: 'elite-api-key'
+    };
+
+    const STATUS = {
+      BID_SUBMITTED: 'bid-submitted',
+      STARTED: 'started',
+      COMPLETED: 'completed',
+      PAID: 'paid'
+    };
+
+    // ============ ERROR HANDLING ============
+    class AppError extends Error {
+      constructor(message, code, statusCode = 500, context = {}) {
+        super(message);
+        this.name = 'AppError';
+        this.code = code;
+        this.statusCode = statusCode;
+        this.context = context;
+      }
+    }
+
+    function logError(error, context = {}) {
+      console.error('⚠️ ERROR:', error.message, {
+        code: error.code || 'UNKNOWN',
+        context: error.context || {},
+        ...context
+      });
+    }
+
+    // ============ INPUT SANITIZATION ============
+    function sanitizeHtml(str) {
+      if (typeof str !== 'string') return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function validateJobInput(address, cost) {
+      const errors = [];
+      if (!address || address.trim().length === 0) errors.push('Address required');
+      if (address && address.length > 255) errors.push('Address too long (max 255)');
+      const costNum = parseFloat(cost);
+      if (isNaN(costNum) || costNum <= 0) errors.push('Cost must be > 0');
+      return errors;
+    }
+
+    function validateComparisonInput(address, vendor, price) {
+      const errors = [];
+      if (!address || address.trim().length === 0) errors.push('Address required');
+      if (!vendor || vendor.trim().length === 0) errors.push('Vendor required');
+      const priceNum = parseFloat(price);
+      if (isNaN(priceNum) || priceNum <= 0) errors.push('Price must be > 0');
+      return errors;
+    }
+
+    // ============ API REQUEST WRAPPER ============
+    let requestInProgress = false;
+    
+    async function fetchWithTimeout(url, options = {}, timeoutMs = CONFIG.API.TIMEOUT_MS) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          throw new AppError(`Request timeout after ${timeoutMs}ms`, 'TIMEOUT', 408);
+        }
+        throw err;
+      }
+    }
+
+    async function callClaudeAPI(messages, model = CONFIG.MODELS.TEXT_EXTRACTION, maxTokens = CONFIG.TOKENS.TEXT_EXTRACTION) {
+      return queueRequest(async () => {
+        if (!ANTHROPIC_API_KEY) {
+          throw new AppError('API key not configured', 'NO_API_KEY', 401);
+        }
+
+        // Check rate limits
+        checkRateLimit();
+
+        // Check offline mode
+        if (OFFLINE_MODE.enabled) {
+          throw new AppError(
+            'You are offline. AI extraction requires internet.',
+            'OFFLINE',
+            503
+          );
+        }
+
+        try {
+          // Estimate cost
+          const estimatedCost = model.includes('opus') ? 
+            (maxTokens * RATE_LIMIT.COST_PER_TEXT_TOKEN) : 
+            RATE_LIMIT.COST_PER_IMAGE_CALL;
+
+          const response = await fetchWithTimeout(CONFIG.API.ENDPOINT, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': ANTHROPIC_API_KEY,
+              'anthropic-version': CONFIG.API.VERSION
+            },
+            body: JSON.stringify({
+              model,
+              max_tokens: maxTokens,
+              messages
+            })
+          });
+
+          if (!response.ok) {
+            const errorBody = await response.text().catch(() => '');
+            trackRequest(estimatedCost, 'error');
+            
+            if (response.status === 401) {
+              throw new AppError(
+                'API key invalid. Check Settings.',
+                'AUTH_ERROR',
+                401
+              );
+            }
+            if (response.status === 429) {
+              throw new AppError(
+                'API rate limit hit. Wait a moment.',
+                'API_RATE_LIMIT',
+                429
+              );
+            }
+            if (response.status === 500) {
+              throw new AppError(
+                'Claude API error. Try again in 1 min.',
+                'API_SERVER_ERROR',
+                500
+              );
+            }
+            
+            throw new AppError(
+              `API error ${response.status}: ${response.statusText}`,
+              'API_ERROR',
+              response.status,
+              { body: errorBody.substring(0, 200) }
+            );
+          }
+
+          const data = await response.json();
+          
+          if (!data.content || !Array.isArray(data.content) || data.content.length === 0) {
+            trackRequest(estimatedCost, 'error');
+            throw new AppError(
+              'Invalid API response: no content',
+              'INVALID_RESPONSE',
+              500,
+              { data: JSON.stringify(data).substring(0, 200) }
+            );
+          }
+
+          if (!data.content[0].text) {
+            trackRequest(estimatedCost, 'error');
+            throw new AppError(
+              'Invalid API response: missing text field',
+              'INVALID_RESPONSE',
+              500
+            );
+          }
+
+          // Track successful request
+          trackRequest(estimatedCost, 'success');
+          console.log(`✅ API call succeeded. Est. cost: $${estimatedCost.toFixed(4)}, Daily total: $${REQUEST_TRACKING.totalCostToday.toFixed(2)}`);
+
+          return data;
+        } catch (err) {
+          if (err instanceof AppError) throw err;
+          
+          trackRequest(0.001, 'error');  // Track failed request
+          throw new AppError(err.message, 'API_CALL_FAILED', 500, { originalError: err.name });
+        }
+      });
+    }
+
     // ============ GLOBAL STATE ============
     let jobs = [];
     let comparisons = [];
@@ -291,15 +591,292 @@
     let jobVoiceTranscript = '';
     let compVoiceTranscript = '';
 
+    // ============ RATE LIMITING & COST TRACKING ============
+    const RATE_LIMIT = {
+      MAX_REQUESTS_PER_HOUR: 100,
+      MAX_REQUESTS_PER_DAY: 500,
+      MIN_DELAY_BETWEEN_REQUESTS_MS: 2000,
+      COST_PER_TEXT_TOKEN: 0.0000030,
+      COST_PER_IMAGE_CALL: 0.003  // Estimated
+    };
+
+    const REQUEST_TRACKING = {
+      requests: [],  // { timestamp, cost, status }
+      totalCostToday: 0,
+      totalCostThisMonth: 0
+    };
+
+    function trackRequest(cost, status = 'success') {
+      const now = Date.now();
+      REQUEST_TRACKING.requests.push({
+        timestamp: now,
+        cost,
+        status
+      });
+      
+      // Keep only last 24 hours
+      REQUEST_TRACKING.requests = REQUEST_TRACKING.requests.filter(
+        r => now - r.timestamp < 86400000
+      );
+      
+      // Update totals
+      REQUEST_TRACKING.totalCostToday = REQUEST_TRACKING.requests.reduce((sum, r) => sum + r.cost, 0);
+      
+      // Save tracking
+      try {
+        localStorage.setItem('elite-api-tracking', JSON.stringify(REQUEST_TRACKING));
+      } catch (e) {
+        console.warn('Could not save API tracking');
+      }
+    }
+
+    function loadRequestTracking() {
+      try {
+        const saved = localStorage.getItem('elite-api-tracking');
+        if (saved) {
+          const data = JSON.parse(saved);
+          REQUEST_TRACKING.requests = data.requests || [];
+          REQUEST_TRACKING.totalCostToday = data.totalCostToday || 0;
+          REQUEST_TRACKING.totalCostThisMonth = data.totalCostThisMonth || 0;
+        }
+      } catch (e) {
+        console.warn('Could not load API tracking');
+      }
+    }
+
+    function checkRateLimit() {
+      const now = Date.now();
+      const last60min = REQUEST_TRACKING.requests.filter(r => now - r.timestamp < 3600000);
+      const last24h = REQUEST_TRACKING.requests.filter(r => now - r.timestamp < 86400000);
+      
+      if (last60min.length >= RATE_LIMIT.MAX_REQUESTS_PER_HOUR) {
+        throw new AppError(
+          `Rate limit: ${last60min.length}/${RATE_LIMIT.MAX_REQUESTS_PER_HOUR} requests this hour`,
+          'RATE_LIMIT_HOUR',
+          429
+        );
+      }
+      
+      if (last24h.length >= RATE_LIMIT.MAX_REQUESTS_PER_DAY) {
+        throw new AppError(
+          `Rate limit: ${last24h.length}/${RATE_LIMIT.MAX_REQUESTS_PER_DAY} requests today`,
+          'RATE_LIMIT_DAY',
+          429
+        );
+      }
+    }
+
+    // ============ REQUEST QUEUE & DEBOUNCING ============
+    const REQUEST_QUEUE = {
+      queue: [],
+      processing: false,
+      lastRequestTime: 0
+    };
+
+    async function queueRequest(fn) {
+      return new Promise((resolve, reject) => {
+        REQUEST_QUEUE.queue.push({ fn, resolve, reject });
+        processQueue();
+      });
+    }
+
+    async function processQueue() {
+      if (REQUEST_QUEUE.processing || REQUEST_QUEUE.queue.length === 0) return;
+      
+      REQUEST_QUEUE.processing = true;
+      
+      while (REQUEST_QUEUE.queue.length > 0) {
+        const { fn, resolve, reject } = REQUEST_QUEUE.queue.shift();
+        
+        // Enforce minimum delay between requests
+        const timeSinceLastRequest = Date.now() - REQUEST_QUEUE.lastRequestTime;
+        const delayNeeded = Math.max(0, RATE_LIMIT.MIN_DELAY_BETWEEN_REQUESTS_MS - timeSinceLastRequest);
+        
+        if (delayNeeded > 0) {
+          await new Promise(r => setTimeout(r, delayNeeded));
+        }
+        
+        try {
+          REQUEST_QUEUE.lastRequestTime = Date.now();
+          const result = await fn();
+          resolve(result);
+        } catch (err) {
+          reject(err);
+        }
+      }
+      
+      REQUEST_QUEUE.processing = false;
+    }
+
+    // ============ EXTRACTION CACHING ============
+    const EXTRACTION_CACHE = {
+      text: {},  // hash -> { result, timestamp }
+      images: {} // hash -> { result, timestamp }
+    };
+
+    function hashString(str) {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32-bit integer
+      }
+      return 'h' + Math.abs(hash).toString(36);
+    }
+
+    function getCachedExtraction(type, input) {
+      const hash = hashString(input.substring(0, 500));
+      const cache = type === 'text' ? EXTRACTION_CACHE.text : EXTRACTION_CACHE.images;
+      const cached = cache[hash];
+      
+      if (cached && Date.now() - cached.timestamp < 86400000) {
+        console.log('✅ Using cached extraction for', type);
+        return cached.result;
+      }
+      
+      return null;
+    }
+
+    function cacheExtraction(type, input, result) {
+      const hash = hashString(input.substring(0, 500));
+      const cache = type === 'text' ? EXTRACTION_CACHE.text : EXTRACTION_CACHE.images;
+      cache[hash] = {
+        result,
+        timestamp: Date.now()
+      };
+    }
+
+    // ============ AUTO BACKUP ============
+    function autoBackup() {
+      try {
+        const backup = {
+          timestamp: new Date().toISOString(),
+          jobs: JSON.parse(localStorage.getItem(STORAGE_KEYS.JOBS) || '[]'),
+          comparisons: JSON.parse(localStorage.getItem(STORAGE_KEYS.COMPS) || '[]')
+        };
+        
+        // Keep last 5 backups
+        let backups = [];
+        try {
+          backups = JSON.parse(localStorage.getItem('elite-backups') || '[]');
+        } catch (e) {}
+        
+        backups.push(backup);
+        backups = backups.slice(-5);
+        localStorage.setItem('elite-backups', JSON.stringify(backups));
+        
+        console.log('✅ Auto-backup saved (' + backups.length + ' total)');
+      } catch (e) {
+        console.warn('Auto-backup failed:', e.message);
+      }
+    }
+
+    function restoreFromBackup(backupIndex = 0) {
+      try {
+        const backups = JSON.parse(localStorage.getItem('elite-backups') || '[]');
+        if (backups.length === 0) {
+          throw new Error('No backups available');
+        }
+        
+        const backup = backups[Math.max(0, backups.length - 1 - backupIndex)];
+        if (!backup) throw new Error('Backup not found');
+        
+        if (!confirm(`Restore backup from ${new Date(backup.timestamp).toLocaleString()}? Current data will be replaced.`)) {
+          return;
+        }
+        
+        localStorage.setItem(STORAGE_KEYS.JOBS, JSON.stringify(backup.jobs || []));
+        localStorage.setItem(STORAGE_KEYS.COMPS, JSON.stringify(backup.comparisons || []));
+        
+        jobs = [];
+        comparisons = [];
+        load();            // load() runs normalizeState internally
+        renderDash();
+        renderJobs();
+        renderComps();
+        renderContracts();
+        
+        alert('✅ Restored from backup');
+      } catch (e) {
+        alert('❌ Restore failed: ' + e.message);
+      }
+    }
+
+    // ============ API KEY MANAGEMENT ============
+    function getApiKeySafeDisplay() {
+      if (!ANTHROPIC_API_KEY) return 'Not set';
+      const key = ANTHROPIC_API_KEY;
+      return key.substring(0, 7) + '...' + key.substring(key.length - 4);
+    }
+
+    function validateApiKey(key) {
+      if (!key || typeof key !== 'string') return false;
+      if (!key.startsWith('sk-ant-')) return false;
+      if (key.length < 20) return false;
+      return true;
+    }
+
+    // ============ OFFLINE SUPPORT ============
+    const OFFLINE_MODE = {
+      enabled: false,
+      message: ''
+    };
+
+    window.addEventListener('online', () => {
+      OFFLINE_MODE.enabled = false;
+      console.log('✅ Back online');
+      document.getElementById('settings')?.style.borderColor && (document.getElementById('settings').style.borderColor = 'green');
+    });
+
+    window.addEventListener('offline', () => {
+      OFFLINE_MODE.enabled = true;
+      console.warn('⚠️ You are offline. Read-only mode active.');
+      const settingsTab = document.getElementById('settings');
+      if (settingsTab) settingsTab.style.borderColor = 'orange';
+    });
+
     // ============ INIT ============
     console.log('🚀 App initializing...');
-    localStorage.clear(); // CLEAR OLD DATA
+
+    // Schema migration: only clears data when the storage format actually changes.
+    // Never wipe unconditionally — that destroys the API key, jobs, and backups.
+    const SCHEMA_VERSION = '2';
+    try {
+      const existing = localStorage.getItem('elite-schema-version');
+      if (existing === null) {
+        // First run on this version. Keep any existing data; just stamp the version.
+        localStorage.setItem('elite-schema-version', SCHEMA_VERSION);
+      } else if (existing !== SCHEMA_VERSION) {
+        console.warn('Schema change detected. Backing up before migrating.');
+        autoBackup();
+        localStorage.setItem('elite-schema-version', SCHEMA_VERSION);
+      }
+    } catch (e) {
+      console.warn('Schema check failed:', e.message);
+    }
+
+    loadRequestTracking();
     setupTabs();
     setupFileUpload();
     setupVoice();
     load();
+    autoBackup();
+    
+    // Auto-backup every hour
+    setInterval(autoBackup, 3600000);
+    
+    // Update API usage display every 10 seconds
+    setInterval(updateApiUsageDisplay, 10000);
+    
+    // Check online status
+    if (!navigator.onLine) {
+      OFFLINE_MODE.enabled = true;
+      console.warn('⚠️ Starting in offline mode');
+    }
+    
     renderDash();
     console.log('✅ App ready');
+    console.log('💡 Open browser console (F12) to see detailed logs and errors.');
 
     // ============ VOICE SETUP ============
     function setupVoice() {
@@ -393,6 +970,7 @@
           this.classList.add('active');
           document.getElementById(tabId).classList.add('active');
           if (tabId === 'dashboard') renderDash();
+          else if (tabId === 'batch') renderBatch();
           else if (tabId === 'jobs') renderJobs();
           else if (tabId === 'comparisons') renderComps();
           else if (tabId === 'contracts') renderContracts();
@@ -401,24 +979,84 @@
     }
 
     // ============ PERSISTENCE ============
+
+    // Single gate every record passes through before it can reach the UI.
+    // Anything that fails these checks is dropped, so no render function has to
+    // defend itself against nulls, strings, or missing numbers.
+    function normalizeState() {
+      const validStatuses = Object.values(STATUS);
+      let dropped = 0;
+
+      if (!Array.isArray(jobs)) jobs = [];
+      const jobsBefore = jobs.length;
+      jobs = jobs.filter(j =>
+        j && typeof j === 'object' &&
+        typeof j.address === 'string' && j.address.length > 0 &&
+        typeof j.cost === 'number' && isFinite(j.cost) &&
+        typeof j.bidAmount === 'number' && isFinite(j.bidAmount)
+      ).map(j => ({
+        ...j,
+        id: typeof j.id === 'string' && j.id ? j.id : 'job-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
+        description: typeof j.description === 'string' ? j.description : '',
+        yards: typeof j.yards === 'number' && isFinite(j.yards) ? j.yards : 0,
+        margin: typeof j.margin === 'number' && isFinite(j.margin) ? j.margin : 40,
+        status: validStatuses.includes(j.status) ? j.status : STATUS.BID_SUBMITTED,
+        created: typeof j.created === 'string' ? j.created : new Date().toISOString().split('T')[0]
+      }));
+      dropped += jobsBefore - jobs.length;
+
+      if (!Array.isArray(comparisons)) comparisons = [];
+      const compsBefore = comparisons.length;
+      comparisons = comparisons.filter(c =>
+        c && typeof c === 'object' &&
+        typeof c.address === 'string' && c.address.length > 0 &&
+        typeof c.vendor === 'string' && c.vendor.length > 0 &&
+        typeof c.price === 'number' && isFinite(c.price) && c.price > 0
+      ).map(c => ({
+        ...c,
+        id: typeof c.id === 'string' && c.id ? c.id : 'comp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
+        created: typeof c.created === 'string' ? c.created : new Date().toISOString().split('T')[0]
+      }));
+      dropped += compsBefore - comparisons.length;
+
+      if (dropped > 0) {
+        console.warn(`normalizeState: dropped ${dropped} malformed record(s)`);
+      }
+      return dropped;
+    }
+
     function load() {
       try {
-        const j = localStorage.getItem('elite-jobs');
-        if (j) jobs = JSON.parse(j);
-        const c = localStorage.getItem('elite-comps');
-        if (c) comparisons = JSON.parse(c);
-        const k = localStorage.getItem('elite-api-key');
+        const j = localStorage.getItem(STORAGE_KEYS.JOBS);
+        if (j) {
+          const parsed = JSON.parse(j);
+          if (Array.isArray(parsed)) jobs = parsed;
+        }
+        const c = localStorage.getItem(STORAGE_KEYS.COMPS);
+        if (c) {
+          const parsed = JSON.parse(c);
+          if (Array.isArray(parsed)) comparisons = parsed;
+        }
+        const k = localStorage.getItem(STORAGE_KEYS.API_KEY);
         if (k) ANTHROPIC_API_KEY = k;
+
+        // Repair anything corrupt before the UI ever touches it.
+        if (normalizeState() > 0) save();
+
         updateApiKeyStatus();
-      } catch(e) { console.error('Load:', e); }
+      } catch(e) { 
+        logError(new AppError('Storage load failed', 'STORAGE_ERROR'), { error: e.name });
+        jobs = Array.isArray(jobs) ? jobs : [];
+        comparisons = Array.isArray(comparisons) ? comparisons : [];
+      }
     }
 
     function save() {
       try {
-        localStorage.setItem('elite-jobs', JSON.stringify(jobs));
-        localStorage.setItem('elite-comps', JSON.stringify(comparisons));
+        localStorage.setItem(STORAGE_KEYS.JOBS, JSON.stringify(jobs));
+        localStorage.setItem(STORAGE_KEYS.COMPS, JSON.stringify(comparisons));
       } catch(e) { 
-        console.error('Save:', e);
+        logError(new AppError('Storage save failed', 'STORAGE_ERROR'), { error: e.name });
         if (e.name === 'QuotaExceededError') {
           alert('⚠️ Storage limit reached. Delete old data.');
         }
@@ -436,42 +1074,47 @@
       btn.disabled = true;
 
       try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify({
-            model: 'claude-opus-4-1',
-            max_tokens: 500,
-            messages: [{
+        let extracted = getCachedExtraction('text', 'job:' + text);
+
+        if (!extracted) {
+          const data = await callClaudeAPI(
+            [{
               role: 'user',
               content: `Extract job details from this text. Return ONLY valid JSON with: address (required), description, yards, cost (required number). If missing, omit the field:\n\n${text}`
-            }]
-          })
-        });
+            }],
+            CONFIG.MODELS.TEXT_EXTRACTION,
+            CONFIG.TOKENS.TEXT_EXTRACTION
+          );
 
-        if (!response.ok) throw new Error('API error: ' + response.status);
-        const data = await response.json();
-        const responseText = data.content[0]?.text || '';
-        
-        // Parse JSON from response
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error('No JSON in response');
-        
-        const extracted = JSON.parse(jsonMatch[0]);
-        if (!extracted.address || !extracted.cost) throw new Error('Missing required fields');
+          const responseText = data.content[0].text || '';
+          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            throw new AppError('No JSON found in response', 'PARSE_ERROR', 400);
+          }
 
-        document.getElementById('jobAddress').value = extracted.address;
-        document.getElementById('jobDescription').value = extracted.description || '';
+          try {
+            extracted = JSON.parse(jsonMatch[0]);
+          } catch (err) {
+            throw new AppError(`Invalid JSON: ${err.message}`, 'JSON_PARSE_ERROR', 400);
+          }
+
+          cacheExtraction('text', 'job:' + text, extracted);
+        }
+
+        const validationErrors = validateJobInput(extracted.address, extracted.cost);
+        if (validationErrors.length > 0) {
+          throw new AppError(`Invalid data: ${validationErrors.join(', ')}`, 'VALIDATION_ERROR', 400);
+        }
+
+        document.getElementById('jobAddress').value = sanitizeHtml(extracted.address);
+        document.getElementById('jobDescription').value = sanitizeHtml(extracted.description || '');
         document.getElementById('jobYards').value = extracted.yards || '';
         document.getElementById('jobCost').value = extracted.cost;
         updatePriceBreakdown();
         showJobMessage('✅ Extracted successfully', 'success');
         document.getElementById('jobTextInput').value = '';
       } catch(e) {
+        logError(e instanceof AppError ? e : new AppError(e.message, 'TEXT_EXTRACT_ERROR'));
         showJobMessage('❌ ' + e.message, 'error');
       } finally {
         btn.disabled = false;
@@ -495,39 +1138,45 @@
       btn.disabled = true;
 
       try {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': ANTHROPIC_API_KEY,
-            'anthropic-version': '2023-06-01'
-          },
-          body: JSON.stringify({
-            model: 'claude-opus-4-1',
-            max_tokens: 500,
-            messages: [{
+        let extracted = getCachedExtraction('text', 'comp:' + text);
+
+        if (!extracted) {
+          const data = await callClaudeAPI(
+            [{
               role: 'user',
               content: `Extract vendor quote details. Return ONLY valid JSON with: address (required), vendor (required), price (required number). If missing, omit:\n\n${text}`
-            }]
-          })
-        });
+            }],
+            CONFIG.MODELS.TEXT_EXTRACTION,
+            CONFIG.TOKENS.TEXT_EXTRACTION
+          );
 
-        if (!response.ok) throw new Error('API error: ' + response.status);
-        const data = await response.json();
-        const responseText = data.content[0]?.text || '';
-        
-        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error('No JSON in response');
-        
-        const extracted = JSON.parse(jsonMatch[0]);
-        if (!extracted.address || !extracted.vendor || !extracted.price) throw new Error('Missing required fields');
+          const responseText = data.content[0].text || '';
+          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            throw new AppError('No JSON found in response', 'PARSE_ERROR', 400);
+          }
 
-        document.getElementById('compAddress').value = extracted.address;
-        document.getElementById('compVendor').value = extracted.vendor;
+          try {
+            extracted = JSON.parse(jsonMatch[0]);
+          } catch (err) {
+            throw new AppError(`Invalid JSON: ${err.message}`, 'JSON_PARSE_ERROR', 400);
+          }
+
+          cacheExtraction('text', 'comp:' + text, extracted);
+        }
+
+        const validationErrors = validateComparisonInput(extracted.address, extracted.vendor, extracted.price);
+        if (validationErrors.length > 0) {
+          throw new AppError(`Invalid data: ${validationErrors.join(', ')}`, 'VALIDATION_ERROR', 400);
+        }
+
+        document.getElementById('compAddress').value = sanitizeHtml(extracted.address);
+        document.getElementById('compVendor').value = sanitizeHtml(extracted.vendor);
         document.getElementById('compPrice').value = extracted.price;
         showCompMessage('✅ Extracted successfully', 'success');
         document.getElementById('compTextInput').value = '';
       } catch(e) {
+        logError(e instanceof AppError ? e : new AppError(e.message, 'TEXT_EXTRACT_ERROR'));
         showCompMessage('❌ ' + e.message, 'error');
       } finally {
         btn.disabled = false;
@@ -543,12 +1192,14 @@
 
     function showJobMessage(msg, type) {
       const el = document.getElementById('jobMessage');
-      el.innerHTML = msg ? `<div class="${type}">${msg}</div>` : '';
+      if (!msg) { el.innerHTML = ''; return; }
+      el.innerHTML = `<div class="${sanitizeHtml(type)}">${sanitizeHtml(String(msg))}</div>`;
     }
 
     function showCompMessage(msg, type) {
       const el = document.getElementById('compMessage');
-      el.innerHTML = msg ? `<div class="${type}">${msg}</div>` : '';
+      if (!msg) { el.innerHTML = ''; return; }
+      el.innerHTML = `<div class="${sanitizeHtml(type)}">${sanitizeHtml(String(msg))}</div>`;
     }
 
     // ============ FILE UPLOAD ============
@@ -559,133 +1210,207 @@
 
     async function handleJobImageUpload(e) {
       const file = e.target.files[0];
-      if (!file || !ANTHROPIC_API_KEY) { alert('Set API key in Settings'); return; }
+      if (!file || !ANTHROPIC_API_KEY) { 
+        alert('Set API key in Settings');
+        return;
+      }
       
       showJobMessage('Processing image...', '');
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          const base64 = event.target.result.split(',')[1];
-          const mediaType = file.type === 'application/pdf' ? 'application/pdf' : 'image/jpeg';
-          
-          const response = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': ANTHROPIC_API_KEY,
-              'anthropic-version': '2023-06-01'
-            },
-            body: JSON.stringify({
-              model: 'claude-sonnet-4-6',
-              max_tokens: 500,
-              messages: [{
-                role: 'user',
-                content: [
-                  {
-                    type: 'image',
-                    source: { type: 'base64', media_type: mediaType, data: base64 }
-                  },
-                  {
-                    type: 'text',
-                    text: 'Extract job details: address, description, yards, cost. Return ONLY valid JSON with required fields address and cost.'
-                  }
-                ]
-              }]
-            })
-          });
+      try {
+        // Read file as base64
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            try {
+              const b64 = event.target.result.split(',')[1];
+              if (!b64) throw new Error('Invalid file data');
+              resolve(b64);
+            } catch (err) {
+              reject(err);
+            }
+          };
+          reader.onerror = () => reject(new Error('File read error'));
+          reader.readAsDataURL(file);
+        });
 
-          if (!response.ok) throw new Error('API error: ' + response.status);
-          const data = await response.json();
-          const responseText = data.content[0]?.text || '';
-          
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) throw new Error('No JSON in response');
-          
-          const extracted = JSON.parse(jsonMatch[0]);
-          if (!extracted.address || !extracted.cost) throw new Error('Missing required fields');
+        const mediaType = file.type === 'application/pdf' ? 'application/pdf' : 'image/jpeg';
+        
+        console.log('Sending job image to API:', file.name);
+        
+        // Call Claude API with new wrapper
+        const data = await callClaudeAPI(
+          [{
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: { type: 'base64', media_type: mediaType, data: base64 }
+              },
+              {
+                type: 'text',
+                text: 'Extract job estimate details: address, description, estimated yards, total cost. Return ONLY this exact JSON format: {"address":"","description":"","yards":0,"cost":0}'
+              }
+            ]
+          }],
+          CONFIG.MODELS.IMAGE_EXTRACTION,
+          CONFIG.TOKENS.IMAGE_EXTRACTION
+        );
 
-          document.getElementById('jobAddress').value = extracted.address;
-          document.getElementById('jobDescription').value = extracted.description || '';
-          document.getElementById('jobYards').value = extracted.yards || '';
-          document.getElementById('jobCost').value = extracted.cost;
-          updatePriceBreakdown();
-          showJobMessage('✅ Image processed', 'success');
-        } catch(e) {
-          showJobMessage('❌ ' + e.message, 'error');
+        const responseText = data.content[0].text || '';
+        console.log('Job response:', responseText.substring(0, 100));
+        
+        // Parse JSON
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
+          throw new AppError('No JSON found in response', 'PARSE_ERROR', 400, { response: responseText.substring(0, 100) });
         }
-      };
-      reader.readAsDataURL(file);
+        
+        let extracted;
+        try {
+          extracted = JSON.parse(jsonMatch[0]);
+        } catch (err) {
+          throw new AppError(`Invalid JSON: ${err.message}`, 'JSON_PARSE_ERROR', 400);
+        }
+
+        // Validate required fields
+        const validationErrors = validateJobInput(extracted.address, extracted.cost);
+        if (validationErrors.length > 0) {
+          throw new AppError(
+            `Invalid data: ${validationErrors.join(', ')}`,
+            'VALIDATION_ERROR',
+            400,
+            { extracted }
+          );
+        }
+
+        // Fill form fields with sanitized data
+        document.getElementById('jobAddress').value = sanitizeHtml(extracted.address);
+        document.getElementById('jobDescription').value = sanitizeHtml(extracted.description || '');
+        document.getElementById('jobYards').value = extracted.yards || '';
+        document.getElementById('jobCost').value = extracted.cost;
+        updatePriceBreakdown();
+        
+        showJobMessage('✅ Image processed and fields filled', 'success');
+        console.log('Job fields populated successfully');
+      } catch (err) {
+        const errMsg = err instanceof AppError ? err.message : err.message;
+        console.error('Job image upload error:', errMsg);
+        logError(err instanceof AppError ? err : new AppError(err.message, 'IMAGE_UPLOAD_ERROR'));
+        showJobMessage('❌ ' + errMsg, 'error');
+      }
     }
 
     async function handleCompImageUpload(e) {
-      const files = e.target.files;
-      if (files.length === 0 || !ANTHROPIC_API_KEY) { alert('Set API key in Settings'); return; }
+      const files = Array.from(e.target.files);
+      if (files.length === 0 || !ANTHROPIC_API_KEY) { 
+        alert('Set API key in Settings');
+        return;
+      }
       
       showCompMessage(`Processing ${files.length} image(s)...`, '');
-      let processed = 0;
+      let added = 0;
+      const errors = [];
 
-      for (const file of files) {
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-          try {
-            const base64 = event.target.result.split(',')[1];
-            const mediaType = file.type === 'application/pdf' ? 'application/pdf' : 'image/jpeg';
-            
-            const response = await fetch('https://api.anthropic.com/v1/messages', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': ANTHROPIC_API_KEY,
-                'anthropic-version': '2023-06-01'
-              },
-              body: JSON.stringify({
-                model: 'claude-sonnet-4-6',
-                max_tokens: 500,
-                messages: [{
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'image',
-                      source: { type: 'base64', media_type: mediaType, data: base64 }
-                    },
-                    {
-                      type: 'text',
-                      text: 'Extract vendor quote: address, vendor name, quoted price. Return ONLY valid JSON.'
-                    }
-                  ]
-                }]
-              })
-            });
-
-            if (!response.ok) throw new Error('API error');
-            const data = await response.json();
-            const responseText = data.content[0]?.text || '';
-            
-            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const extracted = JSON.parse(jsonMatch[0]);
-              if (extracted.address && extracted.vendor && extracted.price) {
-                comparisons.push({
-                  id: 'comp-' + Date.now() + Math.random(),
-                  address: extracted.address,
-                  vendor: extracted.vendor,
-                  price: extracted.price,
-                  created: new Date().toISOString().split('T')[0]
-                });
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        try {
+          console.log(`Processing file ${i + 1}/${files.length}: ${file.name}`);
+          
+          // Read file as base64
+          const base64 = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              try {
+                const b64 = event.target.result.split(',')[1];
+                if (!b64) throw new Error('Invalid file data');
+                resolve(b64);
+              } catch (err) {
+                reject(err);
               }
-            }
-          } catch(e) {
-            console.error('File error:', e);
+            };
+            reader.onerror = () => reject(new Error('File read error'));
+            reader.readAsDataURL(file);
+          });
+
+          const mediaType = file.type === 'application/pdf' ? 'application/pdf' : 'image/jpeg';
+          
+          // Call Claude API with new wrapper
+          const data = await callClaudeAPI(
+            [{
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  source: { type: 'base64', media_type: mediaType, data: base64 }
+                },
+                {
+                  type: 'text',
+                  text: 'Extract vendor quote details: address, vendor name, quoted price. Return ONLY this exact JSON format: {"address":"","vendor":"","price":0}'
+                }
+              ]
+            }],
+            CONFIG.MODELS.IMAGE_EXTRACTION,
+            CONFIG.TOKENS.IMAGE_EXTRACTION
+          );
+
+          const responseText = data.content[0].text || '';
+          console.log(`File ${i + 1} response:`, responseText.substring(0, 100));
+          
+          // Parse JSON
+          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            throw new AppError(`No JSON found in response`, 'PARSE_ERROR', 400, { response: responseText.substring(0, 100) });
           }
           
-          processed++;
-          if (processed === files.length) {
-            save();
-            renderComps();
-            showCompMessage(`✅ Processed ${files.length} image(s)`, 'success');
+          let extracted;
+          try {
+            extracted = JSON.parse(jsonMatch[0]);
+          } catch (err) {
+            throw new AppError(`Invalid JSON: ${err.message}`, 'JSON_PARSE_ERROR', 400);
           }
-        };
-        reader.readAsDataURL(file);
+
+          // Validate extracted data
+          const validationErrors = validateComparisonInput(extracted.address, extracted.vendor, extracted.price);
+          if (validationErrors.length > 0) {
+            throw new AppError(
+              `Invalid data: ${validationErrors.join(', ')}`,
+              'VALIDATION_ERROR',
+              400,
+              { extracted }
+            );
+          }
+
+          // Add to comparisons
+          comparisons.push({
+            id: 'comp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
+            address: sanitizeHtml(extracted.address),
+            vendor: sanitizeHtml(extracted.vendor),
+            price: parseFloat(extracted.price),
+            created: new Date().toISOString().split('T')[0]
+          });
+          added++;
+          console.log(`✅ Added file ${i + 1}, total added: ${added}`);
+        } catch (err) {
+          const errMsg = err instanceof AppError ? err.message : err.message;
+          console.error(`❌ File ${i + 1} error:`, errMsg);
+          errors.push(`${file.name}: ${errMsg}`);
+          logError(err instanceof AppError ? err : new AppError(err.message, 'FILE_PROCESS_ERROR'));
+        }
+      }
+
+      // Save and render
+      save();
+      renderComps();
+
+      // Show result message
+      if (added > 0) {
+        showCompMessage(`✅ Added ${added} of ${files.length} image(s)`, 'success');
+      }
+      if (errors.length > 0) {
+        showCompMessage(`⚠️ ${errors.length} file(s) failed: ${errors[0]}...`, 'error');
+      }
+      if (added === 0 && errors.length === 0) {
+        showCompMessage(`⚠️ No data extracted from images`, 'error');
       }
     }
 
@@ -726,35 +1451,404 @@
     function createJob(event) {
       event.preventDefault();
       const address = document.getElementById('jobAddress').value.trim();
-      const cost = parseFloat(document.getElementById('jobCost').value) || 0;
+      const cost = parseFloat(document.getElementById('jobCost').value);
       const margin = parseInt(document.getElementById('jobMargin').value) || 40;
 
-      if (!address || cost <= 0) {
-        showJobMessage('Address and cost are required', 'error');
+      // Validate input
+      const validationErrors = validateJobInput(address, cost);
+      if (validationErrors.length > 0) {
+        showJobMessage('❌ ' + validationErrors.join(', '), 'error');
         return false;
       }
 
+      // Validate margin
+      if (margin < 0 || margin >= 100) {
+        showJobMessage('❌ Margin must be between 0 and 99%', 'error');
+        return false;
+      }
+
+      // Calculate bid
       const bid = Math.round(cost / (1 - margin / 100));
+      if (!isFinite(bid) || bid <= cost) {
+        showJobMessage('❌ Invalid margin or cost', 'error');
+        return false;
+      }
+
+      // Create job with sanitized data
       const job = {
-        id: 'job-' + Date.now(),
-        address,
-        description: document.getElementById('jobDescription').value,
+        id: 'job-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
+        address: sanitizeHtml(address),
+        description: sanitizeHtml(document.getElementById('jobDescription').value || ''),
         yards: parseFloat(document.getElementById('jobYards').value) || 0,
         cost,
         bidAmount: bid,
         margin,
-        status: 'bid-submitted',
+        status: STATUS.BID_SUBMITTED,
         created: new Date().toISOString().split('T')[0]
       };
 
-      jobs.push(job);
-      save();
+      // Step 1: persist. If this fails, the job genuinely was not saved.
+      try {
+        jobs.push(job);
+        save();
+      } catch (err) {
+        jobs = jobs.filter(j => j.id !== job.id); // roll back the in-memory push
+        logError(new AppError('Failed to create job', 'CREATE_JOB_ERROR'), { error: err.message });
+        showJobMessage('❌ Error saving job: ' + err.message, 'error');
+        return false;
+      }
+
+      // Step 2: refresh the UI. The job is already saved, so a hiccup here is
+      // cosmetic and must not be reported as a failed save.
       showJobMessage('✅ Job created', 'success');
-      document.getElementById('newJobForm').reset();
-      updatePriceBreakdown();
+      try {
+        const form = document.getElementById('newJobForm');
+        if (form && typeof form.reset === 'function') form.reset();
+        updatePriceBreakdown();
+        renderDash();
+        renderJobs();
+      } catch (err) {
+        logError(new AppError('Job saved but UI refresh failed', 'RENDER_ERROR'), { error: err.message });
+      }
+      return false;
+    }
+
+    // ============ BATCH ENTRY & MARGIN REVIEW ============
+    // batchDraft  = rows not yet committed to jobs[]
+    // batchMargins = pending margin edits for existing jobs, keyed by job id.
+    //                Nothing here touches jobs[] until the user saves.
+    let batchDraft = [];
+    let batchMargins = {};
+    let batchSelected = {};
+
+    function bidFor(cost, margin) {
+      const c = Number(cost), m = Number(margin);
+      if (!isFinite(c) || c <= 0) return 0;
+      if (!isFinite(m) || m < 0 || m >= 100) return 0;
+      const bid = Math.round(c / (1 - m / 100));
+      return isFinite(bid) ? bid : 0;
+    }
+
+    function money(n) {
+      return '$' + Math.round(Number(n) || 0).toLocaleString('en-US');
+    }
+
+    function addBatchRow(count = 1) {
+      for (let i = 0; i < count; i++) {
+        batchDraft.push({
+          key: 'd-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+          address: '', description: '', cost: '', margin: 40
+        });
+      }
+      renderBatchDraft();
+    }
+
+    function removeBatchRow(key) {
+      batchDraft = batchDraft.filter(r => r.key !== key);
+      renderBatchDraft();
+    }
+
+    function updateBatchDraft(key, field, value) {
+      const row = batchDraft.find(r => r.key === key);
+      if (!row) return;
+      row[field] = value;
+      renderBatchDraft();
+    }
+
+    function renderBatchDraft() {
+      const host = document.getElementById('batchDraftRows');
+      if (!host) return;
+
+      if (batchDraft.length === 0) {
+        host.innerHTML = '<div class="empty-state" style="padding: 1rem;">No rows queued. Click "Add Row" to start.</div>';
+        return;
+      }
+
+      let totalCost = 0, totalBid = 0, validCount = 0;
+      const rows = batchDraft.map(r => {
+        const bid = bidFor(r.cost, r.margin);
+        const cost = Number(r.cost) || 0;
+        const ready = r.address.trim().length > 0 && cost > 0 && bid > cost;
+        if (ready) { totalCost += cost; totalBid += bid; validCount++; }
+        return `
+          <div style="display: grid; grid-template-columns: 2fr 1fr 90px 1fr 32px; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
+            <input type="text" placeholder="Address" value="${sanitizeHtml(r.address)}"
+                   oninput="updateBatchDraftLive('${r.key}','address',this.value)" style="padding: 6px 8px; font-size: 12px;">
+            <input type="number" placeholder="Cost" value="${r.cost}"
+                   oninput="updateBatchDraft('${r.key}','cost',this.value)" style="padding: 6px 8px; font-size: 12px;">
+            <input type="number" min="0" max="90" value="${r.margin}"
+                   oninput="updateBatchDraft('${r.key}','margin',this.value)" style="padding: 6px 8px; font-size: 12px;" title="Margin %">
+            <div style="font-size: 12px; color: ${ready ? '#2e7d32' : '#999'};">
+              ${ready ? money(bid) + ' bid / ' + money(bid - cost) + ' profit' : 'incomplete'}
+            </div>
+            <button onclick="removeBatchRow('${r.key}')" title="Remove"
+                    style="color: #d32f2f; background: none; border: none; cursor: pointer; font-size: 16px;">×</button>
+          </div>`;
+      }).join('');
+
+      host.innerHTML = `
+        <div style="display: grid; grid-template-columns: 2fr 1fr 90px 1fr 32px; gap: 0.5rem; font-size: 11px; color: #666; margin-bottom: 0.4rem; font-weight: 600;">
+          <div>Address</div><div>Cost</div><div>Margin %</div><div>Result</div><div></div>
+        </div>
+        ${rows}
+        <div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #e0e0e0; font-size: 12px;">
+          <strong>${validCount}</strong> of ${batchDraft.length} row(s) ready &nbsp;|&nbsp;
+          Cost ${money(totalCost)} &nbsp;|&nbsp; Bid ${money(totalBid)} &nbsp;|&nbsp;
+          <span style="color: #2e7d32; font-weight: 600;">Profit ${money(totalBid - totalCost)}</span>
+        </div>`;
+    }
+
+    // Text fields re-render on every keystroke, which would drop focus.
+    // Update state only and refresh the summary line separately.
+    function updateBatchDraftLive(key, field, value) {
+      const row = batchDraft.find(r => r.key === key);
+      if (row) row[field] = value;
+    }
+
+    function commitBatchJobs() {
+      const ready = [];
+      const skipped = [];
+
+      batchDraft.forEach((r, i) => {
+        const address = String(r.address || '').trim();
+        const cost = parseFloat(r.cost);
+        const margin = parseInt(r.margin, 10);
+        const errors = validateJobInput(address, cost);
+        if (margin < 0 || margin >= 100 || !isFinite(margin)) errors.push('margin must be 0-99');
+        const bid = bidFor(cost, margin);
+        if (bid <= cost) errors.push('bid must exceed cost');
+
+        if (errors.length > 0) { skipped.push('Row ' + (i + 1) + ': ' + errors.join(', ')); return; }
+
+        ready.push({
+          id: 'job-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
+          address: sanitizeHtml(address),
+          description: sanitizeHtml(String(r.description || '')),
+          yards: 0,
+          cost, bidAmount: bid, margin,
+          status: STATUS.BID_SUBMITTED,
+          created: new Date().toISOString().split('T')[0]
+        });
+      });
+
+      if (ready.length === 0) {
+        showBatchDraftMessage('❌ Nothing to commit. ' + (skipped[0] || 'Add an address and cost.'), 'error');
+        return;
+      }
+
+      const snapshot = jobs.slice();
+      try {
+        ready.forEach(j => jobs.push(j));
+        save();
+      } catch (err) {
+        jobs = snapshot; // roll back so a failed write never leaves a half-committed batch
+        logError(new AppError('Batch commit failed', 'BATCH_COMMIT_ERROR'), { error: err.message });
+        showBatchDraftMessage('❌ Could not save: ' + err.message, 'error');
+        return;
+      }
+
+      batchDraft = batchDraft.filter((r, i) => skipped.some(s => s.startsWith('Row ' + (i + 1) + ':')));
+      renderBatchDraft();
+      renderBatch();
       renderDash();
       renderJobs();
-      return false;
+
+      showBatchDraftMessage(
+        `✅ Committed ${ready.length} job(s).` + (skipped.length ? ` ${skipped.length} row(s) kept for fixing.` : ''),
+        skipped.length ? 'error' : 'success'
+      );
+    }
+
+    function getBatchVisibleJobs() {
+      const filterEl = document.getElementById('batchStatusFilter');
+      const raw = filterEl && filterEl.value ? filterEl.value : 'all';
+      // Anything that isn't a known status falls back to showing everything,
+      // so a missing or unexpected value can never hide the whole list.
+      const filter = Object.values(STATUS).includes(raw) ? raw : 'all';
+      return jobs.filter(j => filter === 'all' || j.status === filter);
+    }
+
+    function batchSelectAll(on) {
+      getBatchVisibleJobs().forEach(j => { batchSelected[j.id] = !!on; });
+      renderBatch();
+    }
+
+    function toggleBatchSelect(id, on) {
+      batchSelected[id] = !!on;
+      renderBatch();
+    }
+
+    function onGlobalMarginInput() {
+      const v = document.getElementById('batchGlobalMargin').value;
+      document.getElementById('batchGlobalMarginVal').textContent = v;
+    }
+
+    function applyGlobalMargin() {
+      const margin = parseInt(document.getElementById('batchGlobalMargin').value, 10);
+      const targets = getBatchVisibleJobs().filter(j => batchSelected[j.id]);
+
+      if (targets.length === 0) {
+        showBatchMessage('❌ Select at least one job first.', 'error');
+        return;
+      }
+      if (!isFinite(margin) || margin < 0 || margin >= 100) {
+        showBatchMessage('❌ Margin must be between 0 and 99.', 'error');
+        return;
+      }
+
+      targets.forEach(j => { batchMargins[j.id] = margin; });
+      renderBatch();
+      showBatchMessage(`Previewing ${margin}% on ${targets.length} job(s). Nothing saved yet.`, '');
+    }
+
+    function setBatchMargin(id, value) {
+      const m = parseInt(value, 10);
+      if (!isFinite(m)) return;
+      batchMargins[id] = Math.max(0, Math.min(99, m));
+      renderBatch();
+    }
+
+    function resetBatchMargins() {
+      batchMargins = {};
+      renderBatch();
+      showBatchMessage('Reverted to saved margins.', '');
+    }
+
+    function saveBatchMargins() {
+      const ids = Object.keys(batchMargins);
+      if (ids.length === 0) {
+        showBatchMessage('No pending changes to save.', 'error');
+        return;
+      }
+
+      const snapshot = JSON.parse(JSON.stringify(jobs));
+      let changed = 0;
+      try {
+        ids.forEach(id => {
+          const job = jobs.find(j => j.id === id);
+          if (!job) return;
+          const m = batchMargins[id];
+          const bid = bidFor(job.cost, m);
+          if (bid <= job.cost) return; // never write a bid that loses money
+          job.margin = m;
+          job.bidAmount = bid;
+          changed++;
+        });
+        save();
+      } catch (err) {
+        jobs = snapshot;
+        logError(new AppError('Batch margin save failed', 'BATCH_SAVE_ERROR'), { error: err.message });
+        showBatchMessage('❌ Could not save: ' + err.message, 'error');
+        return;
+      }
+
+      batchMargins = {};
+      renderBatch();
+      renderDash();
+      renderJobs();
+      renderContracts();
+      showBatchMessage(`✅ Saved new margins on ${changed} job(s).`, 'success');
+    }
+
+    function renderBatch() {
+      if (!document.getElementById('batchTable')) return;
+      renderBatchDraft();
+
+      const visible = getBatchVisibleJobs();
+      const table = document.getElementById('batchTable');
+      const totalsEl = document.getElementById('batchTotals');
+      const saveBar = document.getElementById('batchSaveBar');
+
+      if (visible.length === 0) {
+        table.innerHTML = '<div class="empty-state">No jobs in this view</div>';
+        totalsEl.innerHTML = '';
+        saveBar.innerHTML = '';
+        return;
+      }
+
+      let selCost = 0, selBidNew = 0, selBidOld = 0, selCount = 0;
+      let allCost = 0, allBidNew = 0;
+
+      const rows = visible.map(j => {
+        const pending = Object.prototype.hasOwnProperty.call(batchMargins, j.id);
+        const margin = pending ? batchMargins[j.id] : j.margin;
+        const newBid = bidFor(j.cost, margin) || j.bidAmount;
+        const newProfit = newBid - j.cost;
+        const oldProfit = j.bidAmount - j.cost;
+        const delta = newProfit - oldProfit;
+        const checked = batchSelected[j.id] ? 'checked' : '';
+
+        allCost += j.cost; allBidNew += newBid;
+        if (batchSelected[j.id]) {
+          selCount++; selCost += j.cost; selBidNew += newBid; selBidOld += j.bidAmount;
+        }
+
+        return `
+          <div style="display: grid; grid-template-columns: 28px 2fr 1fr 120px 1fr 1fr; gap: 0.5rem; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid #f0f0f0; font-size: 12px;">
+            <input type="checkbox" ${checked} onchange="toggleBatchSelect('${j.id}', this.checked)">
+            <div>
+              <div style="font-weight: 600;">${sanitizeHtml(j.address)}</div>
+              <div style="color: #999; font-size: 11px;">${sanitizeHtml(j.status)}</div>
+            </div>
+            <div>${money(j.cost)}</div>
+            <div style="display: flex; align-items: center; gap: 0.35rem;">
+              <input type="number" min="0" max="99" value="${margin}"
+                     onchange="setBatchMargin('${j.id}', this.value)"
+                     style="width: 62px; padding: 4px 6px; font-size: 12px; ${pending ? 'border: 2px solid #f57c00;' : ''}">
+              <span style="color:#666;">%</span>
+            </div>
+            <div>${money(newBid)}</div>
+            <div style="color: ${newProfit >= 0 ? '#2e7d32' : '#d32f2f'}; font-weight: 600;">
+              ${money(newProfit)}
+              ${delta !== 0 ? `<span style="color:#f57c00; font-weight:400;"> (${delta > 0 ? '+' : ''}${money(delta)})</span>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+
+      const pendingCount = Object.keys(batchMargins).length;
+      const blended = allBidNew > 0 ? Math.round(((allBidNew - allCost) / allBidNew) * 100) : 0;
+
+      totalsEl.innerHTML = `
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1rem; background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 1rem; margin-bottom: 1rem;">
+          <div><div style="color:#666; font-size:11px;">Jobs shown</div><div style="font-size:18px; font-weight:bold;">${visible.length}</div></div>
+          <div><div style="color:#666; font-size:11px;">Total cost</div><div style="font-size:18px; font-weight:bold;">${money(allCost)}</div></div>
+          <div><div style="color:#666; font-size:11px;">Total bid</div><div style="font-size:18px; font-weight:bold;">${money(allBidNew)}</div></div>
+          <div><div style="color:#666; font-size:11px;">Total profit</div><div style="font-size:18px; font-weight:bold; color:#2e7d32;">${money(allBidNew - allCost)}</div></div>
+          <div><div style="color:#666; font-size:11px;">Blended margin</div><div style="font-size:18px; font-weight:bold;">${blended}%</div></div>
+        </div>
+        ${selCount > 0 ? `
+        <div style="background:#f0f7ff; border-radius:6px; padding:0.75rem 1rem; margin-bottom:1rem; font-size:12px;">
+          <strong>${selCount} selected</strong> &nbsp;|&nbsp; Cost ${money(selCost)} &nbsp;|&nbsp; Bid ${money(selBidNew)}
+          &nbsp;|&nbsp; Profit <strong style="color:#2e7d32;">${money(selBidNew - selCost)}</strong>
+          ${selBidNew !== selBidOld ? `<span style="color:#f57c00;"> (${selBidNew - selBidOld > 0 ? '+' : ''}${money(selBidNew - selBidOld)} vs saved)</span>` : ''}
+        </div>` : ''}`;
+
+      table.innerHTML = `
+        <div style="display: grid; grid-template-columns: 28px 2fr 1fr 120px 1fr 1fr; gap: 0.5rem; font-size: 11px; color: #666; font-weight: 600; padding-bottom: 0.4rem; border-bottom: 2px solid #e0e0e0;">
+          <div></div><div>Job</div><div>Cost</div><div>Margin</div><div>Bid</div><div>Profit</div>
+        </div>
+        ${rows}`;
+
+      saveBar.innerHTML = pendingCount > 0 ? `
+        <div style="background:#fff8e1; border:1px solid #f57c00; border-radius:6px; padding:0.75rem 1rem; display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+          <span style="font-size:12px;">⚠️ ${pendingCount} unsaved margin change(s)</span>
+          <button class="btn-primary" onclick="saveBatchMargins()" style="background:#2e7d32;">💾 Save Changes</button>
+          <button onclick="resetBatchMargins()" style="padding:8px 12px; cursor:pointer;">Revert</button>
+        </div>` : '';
+    }
+
+    function showBatchMessage(msg, type) {
+      const el = document.getElementById('batchMessage');
+      if (!el) return;
+      if (!msg) { el.innerHTML = ''; return; }
+      el.innerHTML = `<div class="${sanitizeHtml(type)}">${sanitizeHtml(String(msg))}</div>`;
+    }
+
+    function showBatchDraftMessage(msg, type) {
+      const el = document.getElementById('batchDraftMessage');
+      if (!el) return;
+      if (!msg) { el.innerHTML = ''; return; }
+      el.innerHTML = `<div class="${sanitizeHtml(type)}">${sanitizeHtml(String(msg))}</div>`;
     }
 
     function renderJobs() {
@@ -763,36 +1857,51 @@
         return;
       }
 
-      const html = jobs.map(j => `
-        <div class="job-card">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-            <div style="font-weight: 600;">${j.address}</div>
-            <select onchange="updateJobStatus('${j.id}', this.value)" style="padding: 4px 8px; font-size: 12px;">
-              <option value="bid-submitted" ${j.status === 'bid-submitted' ? 'selected' : ''}>Bid Submitted</option>
-              <option value="started" ${j.status === 'started' ? 'selected' : ''}>Started</option>
-              <option value="completed" ${j.status === 'completed' ? 'selected' : ''}>Completed</option>
-              <option value="paid" ${j.status === 'paid' ? 'selected' : ''}>Paid</option>
-            </select>
-          </div>
-          <div style="font-size: 12px; color: #666;">
-            Cost: $${j.cost.toLocaleString('en-US', {maximumFractionDigits: 0})} | 
-            Bid: $${j.bidAmount.toLocaleString('en-US', {maximumFractionDigits: 0})} | 
-            Profit: $${(j.bidAmount - j.cost).toLocaleString('en-US', {maximumFractionDigits: 0})}
-          </div>
-          <div style="font-size: 11px; color: #999; margin-top: 0.5rem;">
-            <button onclick="deleteJob('${j.id}')" style="color: #d32f2f; background: none; border: none; cursor: pointer; padding: 0;">Delete</button>
-          </div>
-        </div>
-      `).join('');
+      try {
+        const html = jobs.map(j => {
+          const profit = j.bidAmount - j.cost;
+          const safeAddress = sanitizeHtml(j.address);
+          const safeId = j.id.replace(/'/g, '');
+          return `
+            <div class="job-card">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                <div style="font-weight: 600;">${safeAddress}</div>
+                <select onchange="updateJobStatus('${safeId}', this.value)" style="padding: 4px 8px; font-size: 12px;">
+                  <option value="${STATUS.BID_SUBMITTED}" ${j.status === STATUS.BID_SUBMITTED ? 'selected' : ''}>Bid Submitted</option>
+                  <option value="${STATUS.STARTED}" ${j.status === STATUS.STARTED ? 'selected' : ''}>Started</option>
+                  <option value="${STATUS.COMPLETED}" ${j.status === STATUS.COMPLETED ? 'selected' : ''}>Completed</option>
+                  <option value="${STATUS.PAID}" ${j.status === STATUS.PAID ? 'selected' : ''}>Paid</option>
+                </select>
+              </div>
+              <div style="font-size: 12px; color: #666;">
+                Cost: $${j.cost.toLocaleString('en-US', {maximumFractionDigits: 0})} | 
+                Bid: $${j.bidAmount.toLocaleString('en-US', {maximumFractionDigits: 0})} | 
+                Profit: $${profit.toLocaleString('en-US', {maximumFractionDigits: 0})}
+              </div>
+              <div style="font-size: 11px; color: #999; margin-top: 0.5rem;">
+                <button onclick="deleteJob('${safeId}')" style="color: #d32f2f; background: none; border: none; cursor: pointer; padding: 0;">Delete</button>
+              </div>
+            </div>
+          `;
+        }).join('');
 
-      document.getElementById('jobsList').innerHTML = html;
+        document.getElementById('jobsList').innerHTML = html;
+      } catch (err) {
+        logError(new AppError('Failed to render jobs', 'RENDER_ERROR'), { error: err.message });
+        document.getElementById('jobsList').innerHTML = '<div class="error">Error rendering jobs</div>';
+      }
     }
 
     function updateJobStatus(id, status) {
       const job = jobs.find(j => j.id === id);
-      if (job) {
+      if (!job) {
+        console.warn('Job not found:', id);
+        return;
+      }
+      
+      try {
         job.status = status;
-        if (status === 'completed') {
+        if (status === STATUS.COMPLETED) {
           const dueDate = new Date();
           dueDate.setDate(dueDate.getDate() + 30);
           job.net30Date = dueDate.toISOString().split('T')[0];
@@ -801,6 +1910,9 @@
         renderJobs();
         renderDash();
         renderContracts();
+      } catch (err) {
+        logError(new AppError('Failed to update job status', 'UPDATE_STATUS_ERROR'), { jobId: id, status });
+        alert('Error updating job');
       }
     }
 
@@ -827,7 +1939,25 @@
 
     // ============ COMPARISONS ============
     function renderComps() {
-      if (!comparisons || comparisons.length === 0) {
+      // Drop malformed records before rendering. Bad entries can arrive from a
+      // failed import, a partial extraction, or an older storage format.
+      if (Array.isArray(comparisons)) {
+        const before = comparisons.length;
+        comparisons = comparisons.filter(c =>
+          c && typeof c === 'object' &&
+          typeof c.address === 'string' && c.address.length > 0 &&
+          typeof c.vendor === 'string' && c.vendor.length > 0 &&
+          typeof c.price === 'number' && isFinite(c.price) && c.price > 0
+        );
+        if (comparisons.length !== before) {
+          console.warn(`Dropped ${before - comparisons.length} malformed comparison(s)`);
+          save();
+        }
+      } else {
+        comparisons = [];
+      }
+
+      if (comparisons.length === 0) {
         document.getElementById('compList').innerHTML = '<div class="empty-state">No comparisons yet</div>';
         document.getElementById('compAnalysis').innerHTML = '';
         return;
@@ -849,7 +1979,13 @@
 
       const vendorStats = Object.entries(vendorMap)
         .map(([name, data]) => ({ name, ...data, avg: Math.round(data.total / data.count) }))
-        .sort((a, b) => a.avg - b.avg);
+        .sort((a, b) => {
+          // Compare as integers to avoid float ordering surprises, then break
+          // ties by name so the leaderboard order is stable between renders.
+          const diff = Math.round(a.avg * 100) - Math.round(b.avg * 100);
+          if (diff !== 0) return diff;
+          return String(a.display || a.name).localeCompare(String(b.display || b.name));
+        });
 
       analysis += `
         <div style="background: #f0f7ff; padding: 1rem; border-radius: 6px; margin-bottom: 2rem;">
@@ -890,17 +2026,18 @@
     function addComparison() {
       const address = document.getElementById('compAddress').value.trim();
       const vendor = document.getElementById('compVendor').value.trim();
-      const price = parseFloat(document.getElementById('compPrice').value) || 0;
+      const price = parseFloat(document.getElementById('compPrice').value);
 
-      if (!address || !vendor || price <= 0) {
-        showCompMessage('All fields required and price > 0', 'error');
+      const validationErrors = validateComparisonInput(address, vendor, price);
+      if (validationErrors.length > 0) {
+        showCompMessage('❌ ' + validationErrors.join(', '), 'error');
         return;
       }
 
       comparisons.push({
-        id: 'comp-' + Date.now(),
-        address,
-        vendor,
+        id: 'comp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9),
+        address: sanitizeHtml(address),
+        vendor: sanitizeHtml(vendor),
         price,
         created: new Date().toISOString().split('T')[0]
       });
@@ -980,29 +2117,95 @@
     function saveApiKey() {
       const key = document.getElementById('apiKeyInput').value.trim();
       if (!key) {
-        alert('Enter an API key');
+        alert('❌ Enter an API key');
         return;
       }
+      
+      if (!validateApiKey(key)) {
+        alert('❌ Invalid API key format. Must start with "sk-ant-" and be 20+ characters.');
+        return;
+      }
+      
+      if (!confirm('Save this API key? It will be stored on your device only.')) {
+        return;
+      }
+      
       ANTHROPIC_API_KEY = key;
-      localStorage.setItem('elite-api-key', key);
+      localStorage.setItem(STORAGE_KEYS.API_KEY, key);
       updateApiKeyStatus();
-      alert('✅ API key saved');
+      document.getElementById('apiKeyInput').value = '';
+      alert('✅ API key saved securely on your device');
+      updateApiUsageDisplay();
     }
 
     function updateApiKeyStatus() {
-      const status = ANTHROPIC_API_KEY ? `✅ Configured (${ANTHROPIC_API_KEY.substring(0, 15)}...)` : '❌ Not configured';
+      const status = ANTHROPIC_API_KEY ? `✅ Configured (${getApiKeySafeDisplay()})` : '❌ Not configured';
       document.getElementById('apiKeyStatus').textContent = status;
+      updateApiUsageDisplay();
+    }
+
+    function updateApiUsageDisplay() {
+      const today = REQUEST_TRACKING.requests.filter(r => {
+        const now = Date.now();
+        return now - r.timestamp < 86400000;
+      });
+      
+      const todayCost = today.reduce((sum, r) => sum + r.cost, 0);
+      const queueSize = REQUEST_QUEUE.queue.length;
+      
+      document.getElementById('todayCallsDisplay').textContent = today.length;
+      document.getElementById('todayCostDisplay').textContent = '$' + todayCost.toFixed(2);
+      document.getElementById('queueSizeDisplay').textContent = queueSize;
+      document.getElementById('rateLimitDisplay').textContent = 
+        `${today.length}/${RATE_LIMIT.MAX_REQUESTS_PER_DAY} calls today`;
+    }
+
+    function showBackups() {
+      try {
+        const backups = JSON.parse(localStorage.getItem('elite-backups') || '[]');
+        if (backups.length === 0) {
+          alert('No backups yet. They will appear here after the first hour.');
+          return;
+        }
+        
+        let html = '<div style="background: #f5f5f5; border-radius: 6px; padding: 1rem;">';
+        backups.forEach((backup, idx) => {
+          const time = new Date(backup.timestamp).toLocaleString();
+          const jobCount = (backup.jobs || []).length;
+          const compCount = (backup.comparisons || []).length;
+          html += `
+            <div style="padding: 0.75rem; margin-bottom: 0.75rem; background: white; border-radius: 4px; font-size: 11px;">
+              <div style="font-weight: bold;">${time}</div>
+              <div style="color: #666; margin: 0.25rem 0;">Jobs: ${jobCount} | Comparisons: ${compCount}</div>
+              <button onclick="restoreFromBackup(${backups.length - 1 - idx})" style="background: #2563eb; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 11px; margin-top: 0.5rem;">
+                Restore
+              </button>
+            </div>
+          `;
+        });
+        html += '</div>';
+        
+        const backupsList = document.getElementById('backupsList');
+        backupsList.innerHTML = html;
+        backupsList.style.display = 'block';
+      } catch (e) {
+        alert('Error loading backups: ' + e.message);
+      }
     }
 
     function clearAllData() {
-      if (!confirm('Delete ALL jobs and comparisons? This cannot be undone.')) return;
+      if (!confirm('Delete ALL jobs and comparisons? Auto-backup will be created first.')) return;
+      
+      // Create backup before clearing
+      autoBackup();
+      
       jobs = [];
       comparisons = [];
       save();
       renderDash();
       renderJobs();
       renderComps();
-      alert('✅ All data cleared');
+      alert('✅ All data cleared. You can restore from backup in Settings.');
     }
 
     // ============ EXPORT/IMPORT ============
@@ -1059,15 +2262,25 @@
         reader.onload = function(event) {
           try {
             const data = JSON.parse(event.target.result);
-            if (!data.jobs || !data.comparisons) throw new Error('Invalid format');
-            if (!confirm('Replace all data? This cannot be undone.')) return;
-            jobs = data.jobs || [];
-            comparisons = data.comparisons || [];
+            if (!Array.isArray(data.jobs) || !Array.isArray(data.comparisons)) {
+              throw new Error('Invalid format: expected jobs and comparisons arrays');
+            }
+            if (!confirm('Replace all data? Your current data will be backed up first.')) return;
+
+            autoBackup(); // safety net before overwriting
+
+            jobs = data.jobs;
+            comparisons = data.comparisons;
+            const dropped = normalizeState();
+
             save();
             renderDash();
             renderJobs();
             renderComps();
-            alert('✅ Data restored');
+            renderContracts();
+            alert(dropped > 0
+              ? `✅ Imported. ${dropped} malformed record(s) were skipped.`
+              : '✅ Data restored');
           } catch(err) {
             alert('❌ Import failed: ' + err.message);
           }
