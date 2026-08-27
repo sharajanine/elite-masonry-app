@@ -504,7 +504,11 @@
             headers: {
               'Content-Type': 'application/json',
               'x-api-key': ANTHROPIC_API_KEY,
-              'anthropic-version': CONFIG.API.VERSION
+              'anthropic-version': CONFIG.API.VERSION,
+              // Required for calls made straight from a browser. Without this the
+              // CORS preflight is rejected and fetch fails before any HTTP status
+              // comes back, which surfaces as "Failed to fetch".
+              'anthropic-dangerous-direct-browser-access': 'true'
             },
             body: JSON.stringify({
               model,
@@ -575,8 +579,27 @@
           return data;
         } catch (err) {
           if (err instanceof AppError) throw err;
-          
-          trackRequest(0.001, 'error');  // Track failed request
+
+          trackRequest(0.001, 'error');
+
+          // fetch() rejects with a TypeError for anything that fails before an
+          // HTTP status exists: blocked CORS preflight, no connection, DNS, or an
+          // extension blocking the request. "Failed to fetch" alone tells the user
+          // nothing, so name the likely causes.
+          const networkLevel = err instanceof TypeError ||
+            /failed to fetch|networkerror|load failed/i.test(err.message || '');
+
+          if (networkLevel) {
+            throw new AppError(
+              'Could not reach the Claude API. Check your internet connection, ' +
+              'and whether an ad blocker, privacy extension, or company network is ' +
+              'blocking api.anthropic.com.',
+              'NETWORK_BLOCKED',
+              0,
+              { originalError: err.message }
+            );
+          }
+
           throw new AppError(err.message, 'API_CALL_FAILED', 500, { originalError: err.name });
         }
       });
