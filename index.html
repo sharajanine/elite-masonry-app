@@ -116,30 +116,20 @@
         <p style="font-size: 11px; color: #999; margin-top: 0.75rem;">💡 <a href="#" onclick="document.querySelector('[data-tab=\"tips\"]').click(); return false;" style="color: #2563eb;">Tips for better extracts</a></p>
       </div>
 
-      <!-- SECONDARY: Text & Voice -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem; margin-top: 2rem;">
-        <!-- Left: Paste text -->
-        <div>
-          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">📝 Paste raw text</h3>
-          <p style="font-size: 12px; color: #666; margin-bottom: 0.75rem;">Email, message, or invoice text:</p>
-          <textarea id="jobTextInput" placeholder="Paste: 'Bid for driveway at 464 Ontario Dr, $2500 total'" style="width: 100%; height: 120px; margin-bottom: 0.75rem; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 13px; font-family: monospace;"></textarea>
-          <button class="btn-primary" onclick="extractJobFromText()" style="width: 100%; margin-bottom: 0.5rem;">Extract from text</button>
+      <!-- SECONDARY: Unified Text & Voice Input (Chatbot Style) -->
+      <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem; margin-top: 2rem;">
+        <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">📝 Paste text or 🎤 speak</h3>
+        <div style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem;">
+          <textarea id="jobTextInput" placeholder="Paste: 'Bid for driveway at 464 Ontario Dr, $2500 total'" style="flex: 1; height: 100px; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 12px; font-family: inherit;"></textarea>
+          <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <button class="btn-primary" id="jobVoiceBtn" onclick="startJobVoice()" style="padding: 10px 12px; font-size: 12px; height: auto; flex: 1; display: flex; align-items: center; justify-content: center;">🎤 Rec</button>
+            <button onclick="stopJobVoice()" style="padding: 10px 12px; font-size: 12px; height: auto; opacity: 0.5; flex: 1;" id="jobVoiceStopBtn" disabled>Stop</button>
+          </div>
         </div>
-
-        <!-- Right: Voice capture -->
-        <div>
-          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">🎤 Or say it out loud</h3>
-          <p style="font-size: 12px; color: #666; margin-bottom: 0.75rem;">Speak the job details:</p>
-          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
-            <button class="btn-primary" id="jobVoiceBtn" onclick="startJobVoice()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
-              🎤 Start recording
-            </button>
-            <button onclick="stopJobVoice()" style="flex: 0.5; opacity: 0.5;" id="jobVoiceStopBtn" disabled>Stop</button>
-          </div>
-          <div id="jobVoiceText" style="background: #f5f5f5; padding: 0.75rem; border-radius: 4px; min-height: 40px; font-size: 12px; color: #666; font-style: italic;">Listening...</div>
-          <div style="margin-top: 0.75rem;">
-            <button class="btn-primary" onclick="extractJobFromVoice()" style="width: 100%;">Extract from voice</button>
-          </div>
+        <div id="jobVoiceText" style="background: #f5f5f5; padding: 0.75rem; border-radius: 4px; min-height: 40px; font-size: 12px; color: #666; font-style: italic; margin-bottom: 0.75rem;">Ready to listen...</div>
+        <div style="display: flex; gap: 0.75rem;">
+          <button class="btn-primary" onclick="extractJobFromText()" style="flex: 1;">📝 Extract text</button>
+          <button class="btn-primary" onclick="extractJobFromVoice()" style="flex: 1;">🎤 Extract voice</button>
         </div>
       </div>
 
@@ -213,30 +203,20 @@
         <div id="uploadStatus"></div>
       </div>
 
-      <!-- SECONDARY: Text & Voice -->
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
-        <!-- Left: Paste text -->
-        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem;">
-          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">📝 Paste raw text</h3>
-          <p style="font-size: 12px; color: #666; margin-bottom: 0.75rem;">Paste email, text message, or invoice text:</p>
-          <textarea id="compTextInput" placeholder='Example: "ABC Masonry quoted $2500 for the driveway at 464 Ontario Dr"' style="width: 100%; height: 100px; margin-bottom: 0.75rem; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 12px; font-family: monospace;"></textarea>
-          <button class="btn-primary" onclick="extractComparisonFromText()" style="width: 100%;">Extract from text</button>
+      <!-- SECONDARY: Unified Text & Voice Input (Chatbot Style) -->
+      <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem; margin-bottom: 2rem;">
+        <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">📝 Paste text or 🎤 speak</h3>
+        <div style="display: flex; gap: 0.75rem; margin-bottom: 0.75rem;">
+          <textarea id="compTextInput" placeholder='Paste: "ABC Masonry quoted $2500 for the driveway at 464 Ontario Dr"' style="flex: 1; height: 80px; padding: 10px 12px; border: 1px solid #e0e0e0; border-radius: 6px; font-size: 12px; font-family: inherit;"></textarea>
+          <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <button class="btn-primary" id="compVoiceBtn" onclick="startCompVoice()" style="padding: 10px 12px; font-size: 12px; height: auto; flex: 1; display: flex; align-items: center; justify-content: center;">🎤 Record</button>
+            <button onclick="stopCompVoice()" style="padding: 10px 12px; font-size: 12px; height: auto; opacity: 0.5; flex: 1;" id="compVoiceStopBtn" disabled>Stop</button>
+          </div>
         </div>
-
-        <!-- Right: Voice capture -->
-        <div style="background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem;">
-          <h3 style="font-size: 14px; font-weight: 500; margin-bottom: 1rem;">🎤 Or say it out loud</h3>
-          <p style="font-size: 12px; color: #666; margin-bottom: 0.75rem;">Speak the vendor quote:</p>
-          <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
-            <button class="btn-primary" id="compVoiceBtn" onclick="startCompVoice()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
-              🎤 Start recording
-            </button>
-            <button onclick="stopCompVoice()" style="flex: 0.5; opacity: 0.5;" id="compVoiceStopBtn" disabled>Stop</button>
-          </div>
-          <div id="compVoiceText" style="background: #f5f5f5; padding: 0.75rem; border-radius: 4px; min-height: 40px; font-size: 12px; color: #666; font-style: italic;">Listening...</div>
-          <div style="margin-top: 0.75rem;">
-            <button class="btn-primary" onclick="extractComparisonFromVoice()" style="width: 100%;">Extract from voice</button>
-          </div>
+        <div id="compVoiceText" style="background: #f5f5f5; padding: 0.75rem; border-radius: 4px; min-height: 40px; font-size: 12px; color: #666; font-style: italic; margin-bottom: 0.75rem;">Ready to listen...</div>
+        <div style="display: flex; gap: 0.75rem;">
+          <button class="btn-primary" onclick="extractComparisonFromText()" style="flex: 1;">📝 Extract text</button>
+          <button class="btn-primary" onclick="extractComparisonFromVoice()" style="flex: 1;">🎤 Extract voice</button>
         </div>
       </div>
 
@@ -924,40 +904,58 @@ If NO price found: {"error":"No price/cost found"}`
     }
 
     function renderComps() {
-      if (comparisons.length === 0) {
+      if (!comparisons || comparisons.length === 0) {
         document.getElementById('compList').innerHTML = '<div class="empty-state">No comparisons yet. Add vendor quotes above.</div>';
         document.getElementById('compSummary').innerHTML = '';
         return;
       }
 
+      // Validate and clean comparisons data
+      comparisons = comparisons.filter(c => {
+        if (!c || typeof c !== 'object') return false;
+        if (!c.address || !c.vendor || typeof c.price !== 'number' || c.price <= 0) return false;
+        return true;
+      });
+
+      if (comparisons.length === 0) {
+        document.getElementById('compList').innerHTML = '<div class="empty-state">No valid comparisons. Check your data.</div>';
+        document.getElementById('compSummary').innerHTML = '';
+        return;
+      }
+
       // Group by job address (case-insensitive)
-      const jobAddresses = [...new Set(comparisons.map(c => c.address.toLowerCase()))].sort();
+      const jobAddresses = [...new Set(comparisons.map(c => (c.address || '').toLowerCase()))].sort();
       const jobGroups = {};
       const addressDisplayMap = {}; // Map normalized to original
       
       jobAddresses.forEach(normalizedAddr => {
-        jobGroups[normalizedAddr] = [];
+        if (normalizedAddr) {
+          jobGroups[normalizedAddr] = [];
+        }
       });
       
       comparisons.forEach(c => {
-        const normalized = c.address.toLowerCase();
-        jobGroups[normalized].push(c);
-        if (!addressDisplayMap[normalized]) {
-          addressDisplayMap[normalized] = c.address; // Keep original casing
+        const normalized = (c.address || '').toLowerCase();
+        if (normalized) {
+          jobGroups[normalized].push(c);
+          if (!addressDisplayMap[normalized]) {
+            addressDisplayMap[normalized] = c.address; // Keep original casing
+          }
         }
       });
 
       // Calculate vendor stats across ALL jobs (case-insensitive)
-      const vendorNames = [...new Set(comparisons.map(c => c.vendor.toLowerCase()))].sort();
+      const vendorNames = [...new Set(comparisons.map(c => (c.vendor || '').toLowerCase()))].sort();
       const vendorStats = {};
       const vendorDisplayMap = {}; // Map normalized to original
       
       vendorNames.forEach(normalizedVendor => {
-        const vendorEstimates = comparisons.filter(c => c.vendor.toLowerCase() === normalizedVendor);
-        const totalCost = vendorEstimates.reduce((s, e) => s + e.price, 0);
-        const avgCost = totalCost / vendorEstimates.length;
-        vendorStats[normalizedVendor] = {
-          total: totalCost,
+        if (normalizedVendor) {
+          const vendorEstimates = comparisons.filter(c => (c.vendor || '').toLowerCase() === normalizedVendor);
+          const totalCost = vendorEstimates.reduce((s, e) => s + (e.price || 0), 0);
+          const avgCost = vendorEstimates.length > 0 ? totalCost / vendorEstimates.length : 0;
+          vendorStats[normalizedVendor] = {
+            total: totalCost,
           avg: avgCost,
           count: vendorEstimates.length,
           estimates: vendorEstimates
