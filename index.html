@@ -782,6 +782,9 @@
   <input type="file" id="fileInput" accept="image/*">
 
   <script>
+    // Get API key from Vercel environment variables
+    const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || 'test-key';
+
     // State
     let jobs = [];
     let currentExpandedJob = null;
@@ -966,6 +969,7 @@
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'x-api-key': ANTHROPIC_API_KEY,
             },
             body: JSON.stringify({
               model: 'claude-sonnet-4-6',
@@ -1030,6 +1034,7 @@
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'x-api-key': ANTHROPIC_API_KEY,
             },
             body: JSON.stringify({
               model: 'claude-sonnet-4-6',
